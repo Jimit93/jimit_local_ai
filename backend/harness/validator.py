@@ -33,7 +33,11 @@ def validate_numeric(question: str, answer: str) -> dict:
 
 
 # Checks that make a post unusable no matter how well it scores elsewhere.
-CRITICAL_CHECKS = ("numbers_grounded", "no_placeholders", "not_copied")
+# `facts_used` belongs here for the same reason as the others: a post written to
+# present measured evidence, that presents none of it, has not done the job -
+# however well it reads. Without it the post scores 10/11 = 0.91, clears the 0.85
+# SUCCESS bar and the repair pass never runs.
+CRITICAL_CHECKS = ("numbers_grounded", "no_placeholders", "not_copied", "facts_used")
 
 _NUM_RE = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
 _MARKDOWN_RE = re.compile(r"\*\*|^#{1,6}\s|^\s*\|.*\|\s*$|__[^_]+__", re.M)
@@ -120,6 +124,20 @@ def validate_post(
         if invented:
             issues.append(
                 f"numbers not present in the supplied facts: {', '.join(invented[:4])}")
+
+        # `numbers_grounded` is satisfied by a post that states no number at all, so
+        # on its own it scores an evidence-free post at 100%. Measured: 18 numbers
+        # supplied, 0 cited, style_match 1.0, status SUCCESS. When the caller hands
+        # the writer measured facts, citing some of them is part of the job.
+        evidence = _numbers(facts)
+        if evidence:
+            cited = used & evidence
+            need = min(2, len(evidence))
+            checks["facts_used"] = len(cited) >= need
+            if not checks["facts_used"]:
+                issues.append(
+                    f"supplied evidence unused: {len(cited)} of {len(evidence)} measured "
+                    f"numbers appear, cite at least {need}")
 
     copied = 0.0
     if examples:

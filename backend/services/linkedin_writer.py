@@ -20,6 +20,7 @@ from backend.harness.validator import STATUS_OK, validate_post
 from backend.llm import manager as LLM
 from backend.retrieval.index import index
 from backend.services.style_engine import (
+    cta_guidance,
     load_profile,
     style_constraints,
     style_instructions,
@@ -78,7 +79,11 @@ def build_plan(topic: str, constraints: dict, examples: list[dict], cta: str | N
         "hook_type": hook,
         "paragraphs": constraints.get("target_paragraphs", [2, 4]),
         "bullets": bool(constraints.get("bullets_expected")),
-        "cta": cta or (constraints.get("preferred_ctas") or [None])[0],
+        # Only fall back to the author's usual CTA when they actually use one.
+        # cta_expected is False at 21% usage, so forcing preferred_ctas[0] put a
+        # call to action into every post the author would normally end without.
+        "cta": cta or ((constraints.get("preferred_ctas") or [None])[0]
+                       if constraints.get("cta_expected") else None),
         "hashtags": constraints.get("hashtags", [0, 3])[1],
         "emoji_allowed": constraints.get("emoji_allowed", False),
     }
@@ -129,7 +134,7 @@ def generate(
             facts=facts,
             audience=audience,
             pillar=pillar,
-            cta=plan["cta"] or "",
+            cta=cta_guidance(plan["cta"]),
             target_words=(lo, hi),
         )
 
@@ -151,6 +156,10 @@ def generate(
         # One targeted repair call, listing only what actually failed.
         fix_prompt = PB.build_prompt(
             objective="Fix specific problems in a LinkedIn post without rewriting its message.",
+            # The repair call has to see the facts too. Without them a "cite the
+            # measured numbers" issue asks the model to produce evidence it was
+            # never shown, and the repair pass silently cannot succeed.
+            context=(f"MEASURED FACTS (the only numbers allowed):\n{facts}" if facts else ""),
             task=f"Post:\n{text}",
             constraints=[f"Fix: {i}" for i in verdict["issues"]] + [
                 f"Keep length between {lo} and {hi} words.",

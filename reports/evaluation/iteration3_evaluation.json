@@ -1,0 +1,128 @@
+{
+  "overall_score": 0.7914,
+  "scores": {
+    "content": 0.5,
+    "style": 0.8487,
+    "factual": 1.0,
+    "structure": 0.8333,
+    "technical": 0.7333,
+    "audience": 0.7333,
+    "efficiency": 1.0
+  },
+  "weights": {
+    "content": 0.2,
+    "style": 0.2,
+    "factual": 0.2,
+    "structure": 0.15,
+    "technical": 0.1,
+    "audience": 0.1,
+    "efficiency": 0.05
+  },
+  "components": {
+    "content": {
+      "score": 0.5,
+      "keywords_expected": [
+        "llm",
+        "routing harness",
+        "routing",
+        "harness",
+        "fully",
+        "model",
+        "tasks",
+        "last",
+        "cpu",
+        "deterministic",
+        "processor",
+        "benchmark"
+      ],
+      "keywords_present": [
+        "model",
+        "tasks",
+        "last",
+        "cpu",
+        "processor",
+        "benchmark"
+      ]
+    },
+    "style": {
+      "score": 0.8487,
+      "parts": {
+        "length": 1.0,
+        "sentence_length": 0.7895,
+        "paragraphs": 1.0,
+        "technical_density": 1.0,
+        "hook_match": 0.0,
+        "hashtag_behaviour": 1.0,
+        "emoji_behaviour": 1.0,
+        "no_generic_phrases": 1.0
+      },
+      "actual": {
+        "words": 60,
+        "hook": "what_if",
+        "paragraphs": 1,
+        "avg_sentence_len": 15.0,
+        "technical_density": 0.1833,
+        "hashtags": 3,
+        "emoji": 0
+      }
+    },
+    "factual": {
+      "score": 1.0,
+      "numbers_grounded": true,
+      "invented_numbers": [],
+      "facts_available": 18,
+      "facts_cited": [
+        "23",
+        "81.5",
+        "83.0"
+      ],
+      "facts_citation_rate": 0.1667,
+      "validator_said_grounded": true
+    },
+    "structure": {
+      "score": 0.8333,
+      "parts": {
+        "has_hook": 1.0,
+        "paragraph_count": 1.0,
+        "evidence_in_body": 1.0,
+        "has_closing": 0.0,
+        "no_markdown": 1.0,
+        "sentence_cap": 1.0
+      }
+    },
+    "technical": {
+      "score": 0.7333,
+      "technical_density": 0.1833,
+      "floor": 0.02,
+      "technical_terms": [
+        "AI",
+        "CPU",
+        "agent",
+        "benchmark",
+        "latency",
+        "model",
+        "offline"
+      ]
+    },
+    "audience": {
+      "score": 0.7333,
+      "parts": {
+        "audience_terms_present": 0.2,
+        "no_audience_inversion": 1.0,
+        "cta_appropriate": 1.0
+      },
+      "recruiting_language": false,
+      "inversion_detected": false
+    },
+    "efficiency": {
+      "score": 1.0,
+      "llm_calls": 1,
+      "tokens": 993,
+      "latency_ms": 47207.2
+    }
+  },
+  "validator_style_match": 1.0,
+  "validator_status": "SUCCESS",
+  "run_id": "eval_iter3_evidence_obligation",
+  "iteration": 3
+}

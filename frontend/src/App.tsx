@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Benchmarks from "./pages/Benchmarks";
 import Chat from "./pages/Chat";
+import Evaluation from "./pages/Evaluation";
 import Knowledge from "./pages/Knowledge";
 import Settings from "./pages/Settings";
 import System from "./pages/System";
@@ -14,6 +15,7 @@ const PAGES = {
   knowledge: { label: "Knowledge", el: <Knowledge /> },
   tasks: { label: "Tasks", el: <Tasks /> },
   benchmarks: { label: "Benchmarks", el: <Benchmarks /> },
+  evaluation: { label: "Evaluation", el: <Evaluation /> },
   system: { label: "System", el: <System /> },
   settings: { label: "Settings", el: <Settings /> },
 } as const;

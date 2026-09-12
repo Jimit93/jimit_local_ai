@@ -1,0 +1,125 @@
+{
+  "overall_score": 0.6381,
+  "scores": {
+    "content": 0.5,
+    "style": 0.8487,
+    "factual": 0.5,
+    "structure": 0.8333,
+    "technical": 0.8,
+    "audience": 0.1333,
+    "efficiency": 1.0
+  },
+  "weights": {
+    "content": 0.2,
+    "style": 0.2,
+    "factual": 0.2,
+    "structure": 0.15,
+    "technical": 0.1,
+    "audience": 0.1,
+    "efficiency": 0.05
+  },
+  "components": {
+    "content": {
+      "score": 0.5,
+      "keywords_expected": [
+        "llm",
+        "routing harness",
+        "routing",
+        "harness",
+        "fully",
+        "model",
+        "tasks",
+        "last",
+        "cpu",
+        "deterministic",
+        "processor",
+        "benchmark"
+      ],
+      "keywords_present": [
+        "llm",
+        "routing",
+        "harness",
+        "model",
+        "last",
+        "processor"
+      ]
+    },
+    "style": {
+      "score": 0.8487,
+      "parts": {
+        "length": 1.0,
+        "sentence_length": 0.7895,
+        "paragraphs": 1.0,
+        "technical_density": 1.0,
+        "hook_match": 0.0,
+        "hashtag_behaviour": 1.0,
+        "emoji_behaviour": 1.0,
+        "no_generic_phrases": 1.0
+      },
+      "actual": {
+        "words": 60,
+        "hook": "announcement",
+        "paragraphs": 2,
+        "avg_sentence_len": 15.0,
+        "technical_density": 0.1833,
+        "hashtags": 0,
+        "emoji": 2
+      }
+    },
+    "factual": {
+      "score": 0.5,
+      "numbers_grounded": true,
+      "invented_numbers": [],
+      "facts_available": 18,
+      "facts_cited": [],
+      "facts_citation_rate": 0.0,
+      "validator_said_grounded": true
+    },
+    "structure": {
+      "score": 0.8333,
+      "parts": {
+        "has_hook": 1.0,
+        "paragraph_count": 1.0,
+        "evidence_in_body": 0.0,
+        "has_closing": 1.0,
+        "no_markdown": 1.0,
+        "sentence_cap": 1.0
+      }
+    },
+    "technical": {
+      "score": 0.8,
+      "technical_density": 0.1833,
+      "floor": 0.02,
+      "technical_terms": [
+        "AI",
+        "CPU",
+        "LLM",
+        "accuracy",
+        "harness",
+        "latency",
+        "model",
+        "routing"
+      ]
+    },
+    "audience": {
+      "score": 0.1333,
+      "parts": {
+        "audience_terms_present": 0.4,
+        "no_audience_inversion": 0.0,
+        "cta_appropriate": 0.0
+      },
+      "recruiting_language": true,
+      "inversion_detected": true
+    },
+    "efficiency": {
+      "score": 1.0,
+      "llm_calls": 1,
+      "tokens": 956,
+      "latency_ms": 45309.0
+    }
+  },
+  "validator_style_match": 1.0,
+  "validator_status": "SUCCESS",
+  "run_id": "eval_iter0_baseline",
+  "iteration": 0
+}

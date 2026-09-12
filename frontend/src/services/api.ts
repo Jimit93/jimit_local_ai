@@ -103,6 +103,10 @@ export const api = {
   benchmarkLatest: () => req<any>("/benchmark/latest"),
   benchmarkRun: (body: Record<string, unknown>) => post<any>("/benchmark/run", body),
   ingest: () => post<any>("/ingest", {}),
+  evaluationReport: () => req<any>("/evaluation/report"),
+  evaluationScore: (body: Record<string, unknown>) => post<any>("/evaluation/score", body),
+  sendFeedback: (body: Record<string, unknown>) => post<any>("/feedback", body),
+  listFeedback: () => req<any>("/feedback"),
   getSettings: () => req<any>("/settings"),
   setSettings: (body: Record<string, unknown>) => post<any>("/settings", body),
 };

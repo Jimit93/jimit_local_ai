@@ -69,7 +69,10 @@ def writer_prompt(
             "about today:\n" + "\n\n---\n".join(examples)
         )
     if facts:
-        ctx_parts.append(f"FACTS YOU MAY USE (do not add others):\n{facts}")
+        ctx_parts.append(
+            "MEASURED FACTS - these are the evidence for this post. Quote the most "
+            "relevant of these numbers exactly, and add no others:\n" + facts
+        )
 
     cons = list(style_rules)
     cons += [
@@ -77,12 +80,20 @@ def writer_prompt(
         "Do not copy any sentence from the examples verbatim.",
         "Use only the facts given above; if a number is not provided, do not state one.",
     ]
+    if facts:
+        # Measured: the three instructions above are all restrictive, and with no
+        # counterweight the model's safest move is to state no number at all - it
+        # cited 0 of 18 supplied numbers twice in a row. One obligating instruction
+        # is cheaper than the repair call that would otherwise be needed.
+        cons.append("Include at least two of the measured numbers above, written "
+                    "exactly as given, as the concrete evidence in the post.")
     if audience:
         cons.append(f"Audience: {audience}.")
     if pillar:
         cons.append(f"Content pillar: {pillar}.")
     if cta:
-        cons.append(f"End with a call to action of type: {cta}.")
+        # `cta` arrives as guidance text, not as an internal detector label.
+        cons.append(f"Close the post with {cta}.")
     cons += constraints_extra or []
     return build_prompt(
         objective="Write one LinkedIn post in the author's established voice.",

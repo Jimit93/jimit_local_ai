@@ -1,0 +1,52 @@
+{
+  "run_id": "eval_iter2_facts_used_check",
+  "iteration": 2,
+  "label": "iteration 2 - deterministic facts_used validator gate",
+  "captured_from": "real frontend at http://127.0.0.1:5173 -> LinkedIn Writer -> Generate",
+  "transport": "POST /api/writer/generate, network request id 10312.307",
+  "timestamp": "2026-09-12T23:34:00+05:30",
+  "model": "qwen2.5-7b-instruct-q4_0-00001-of-00002.gguf",
+  "brief": {
+    "topic": "How I built a fully local AI agent that runs on a CPU-only laptop: a routing harness that sends every task to the cheapest processor that can answer it reliably, so the language model is the last resort instead of the default.",
+    "audience": "AI engineering hiring managers and companies that want AI automation built",
+    "pillar": "engineering depth, proof",
+    "length": "medium",
+    "cta": "",
+    "facts": "Measured on one benchmark run of 23 tasks, LLM-only baseline vs the routing harness on the same machine: LLM calls 23 to 4 (-82.6%). Tokens 8364 to 2214 (-73.5%). Total latency 283.8s to 48.4s (-83.0%). CPU time 2575.5s to 477.8s (-81.5%). Accuracy 39.1% to 100%. 19 of the 23 tasks were answered with no LLM call at all. Fully offline, CPU only: 18 logical cores, 16.7 GB RAM, no GPU. Model is Qwen1.5-1.8B-chat Q4_K_M via llama.cpp. Layers in order: deterministic tools, NLP, classical ML, RAG retrieval, then the LLM last."
+  },
+  "change_under_test": [
+    "validator.validate_post: new deterministic facts_used check - when the caller supplies facts containing numbers, at least min(2, n) of them must appear in the post",
+    "validator.CRITICAL_CHECKS: facts_used added, so an evidence-free post cannot return SUCCESS and the existing repair pass is allowed to run"
+  ],
+  "outcome": "DETECTION WORKS, REPAIR DOES NOT. The gate correctly failed the post and the score became honest, but the repair call produced text identical to iteration 1 and was rejected by the >= comparison, so the extra LLM call bought nothing.",
+  "root_cause_of_failed_repair": "linkedin_writer.generate builds fix_prompt via PB.build_prompt WITHOUT a context= argument. The facts block is never included, so the repair call is told 'cite at least 2 of the 18 measured numbers' while being shown none of them. The repair pass is structurally incapable of fixing any fact-related issue.",
+  "plan": {"hook_type": "claim", "paragraphs": [1, 3], "bullets": false, "cta": null,
+           "hashtags": 5, "emoji_allowed": true},
+  "retrieval_count": 2,
+  "llm_calls": 2,
+  "estimated_tokens": 1230,
+  "prompt_tokens": 872,
+  "prompt_chars": 3266,
+  "latency_ms": 57605.1,
+  "repaired": true,
+  "repair_changed_text": false,
+  "confidence": 0.9091,
+  "output": "I built a fully local AI agent designed to run on a CPU-only laptop. This routing harness sends each task to the cheapest processor that can answer it reliably, making the language model the last resort. This setup significantly reduces latency and resource usage, proving that advanced AI can be practical and efficient. #AI #Engineering #Innovation #TechSolution",
+  "validation": {
+    "style_match": 0.9091,
+    "status": "PARTIAL_SUCCESS",
+    "checks": {
+      "length": true, "sentence_length": true, "hashtags": true,
+      "no_generic_phrases": true, "technical_density": true, "no_placeholders": true,
+      "no_meta_text": true, "no_markdown": true, "numbers_grounded": true,
+      "facts_used": false, "not_copied": true
+    },
+    "issues": ["supplied evidence unused: 0 of 18 measured numbers appear, cite at least 2"],
+    "stats": {
+      "words": 58, "sentences": 4, "paragraphs": 1, "hashtags": 4, "emoji": 0,
+      "max_sentence_words": 22, "technical_density": 0.2414,
+      "hook_type": "announcement", "cta_types": [], "readability": 40.42
+    },
+    "max_example_overlap": 0.0645
+  }
+}

@@ -14,6 +14,22 @@ export default function Writer() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [fbResult, setFbResult] = useState<any>(null);
+  const [fbBusy, setFbBusy] = useState(false);
+
+  async function sendFeedback(text: string) {
+    if (!text.trim()) return;
+    setFbBusy(true);
+    setFbResult(null);
+    try {
+      setFbResult(await api.sendFeedback({ text, post: res?.text || "" }));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setFbBusy(false);
+    }
+  }
 
   async function call(fn: () => Promise<WriterResult>) {
     setBusy(true);
@@ -150,6 +166,47 @@ export default function Writer() {
                   All style checks passed{res.metrics.repaired ? " (after one repair call)" : ""}.
                 </p>
               )}
+
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                  Feedback — routed to the layer that owns the fix, not appended to the prompt
+                </div>
+                <div className="btn-row" style={{ flexWrap: "wrap", gap: 6 }}>
+                  {["Too generic.", "Not technical enough.", "Doesn't sound like me.",
+                    "The hook is weak.", "Too long.", "The CTA is wrong.",
+                    "It keeps using generic AI buzzwords.", "Wrong audience."].map((f) => (
+                    <button key={f} className="btn ghost" style={{ fontSize: 12 }}
+                      disabled={fbBusy} onClick={() => sendFeedback(f)}>{f}</button>
+                  ))}
+                </div>
+                <div className="btn-row" style={{ marginTop: 8 }}>
+                  <input value={feedback} onChange={(e) => setFeedback(e.target.value)}
+                    placeholder="…or describe it in your own words" style={{ flex: 3 }} />
+                  <button className="btn ghost" disabled={fbBusy || !feedback.trim()}
+                    onClick={() => sendFeedback(feedback)}>Classify</button>
+                </div>
+                {fbBusy && <div style={{ marginTop: 8 }}><Spinner label="classifying…" /></div>}
+                {fbResult && (
+                  <div style={{ marginTop: 10, background: "var(--panel-2)", padding: 12,
+                    borderRadius: 8, border: "1px solid var(--line)" }}>
+                    <div style={{ fontSize: 12.5, marginBottom: 6 }}>
+                      <span className="pill ok">{fbResult.primary_layer}</span>{" "}
+                      <span className="muted">
+                        confidence {fbResult.confidence} ·{" "}
+                        {fbResult.deterministic_fix_available
+                          ? "fixable without the model"
+                          : "may need model settings"}
+                      </span>
+                    </div>
+                    {fbResult.classifications?.map((c: any, i: number) => (
+                      <div key={i} style={{ fontSize: 12.5, marginBottom: 6 }}>
+                        <div className="mono muted">{c.component}</div>
+                        <div>{c.action}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <details style={{ marginTop: 14 }}>
                 <summary>Style evidence &amp; checks</summary>

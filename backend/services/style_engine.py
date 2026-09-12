@@ -278,6 +278,26 @@ HOOK_GUIDANCE = {
     "transformation": "a before and after framing",
 }
 
+# The CTA labels are detector names, not writing instructions. "hiring" in
+# particular is a misnomer: it is the pattern that matches "open to",
+# "opportunities" and "collaboration", and of the 9 corpus posts it fires on,
+# none announces a vacancy. Handing the bare label to the model made it write
+# "Hiring for more engineers" - the inverse of what the author means.
+CTA_GUIDANCE = {
+    "hiring": "a line saying you are open to opportunities and collaboration "
+              "(you are looking for work and clients - you are not recruiting staff)",
+    "dm": "an invitation to send you a direct message",
+    "comment": "an invitation to reply in the comments",
+    "link": "a pointer to where the reader can see it",
+    "follow": "an invitation to follow for more of this",
+}
+
+
+def cta_guidance(label: str | None) -> str:
+    """Translate an internal CTA label into an instruction the model can follow."""
+    key = (label or "").strip().lower()
+    return CTA_GUIDANCE.get(key, key)
+
 
 def style_instructions(profile: dict | None = None, target_words: tuple[int, int] | None = None
                        ) -> list[str]:

@@ -1,0 +1,185 @@
+{
+  "generated_at": 1789233021.473061,
+  "source": "config/style_profile.json (77 posts) + BM25 neighbours + rule_label",
+  "content_pillar": "engineering depth, proof",
+  "content_pillar_ml": {
+    "label": "ai_engineering",
+    "confidence": 0.95
+  },
+  "audience": "AI engineering hiring managers and companies that want AI automation built",
+  "expected_length": {
+    "min": 38,
+    "max": 137,
+    "corpus_median": 64
+  },
+  "hook": {
+    "type": "claim",
+    "rate_in_corpus": 0.5844,
+    "expected_characteristics": [
+      "a direct factual statement about the topic",
+      "first line under 40 words"
+    ],
+    "alternatives": [
+      [
+        "claim",
+        0.5844
+      ],
+      [
+        "metric",
+        0.1558
+      ],
+      [
+        "label",
+        0.0519
+      ]
+    ]
+  },
+  "structure": [
+    "hook (first line, standalone)",
+    "1-3 short paragraphs",
+    "concrete evidence (measured numbers) in the body",
+    "closing line: positioning or CTA"
+  ],
+  "technical_density": {
+    "floor": 0.02,
+    "corpus_median": 0.03,
+    "neighbour_mean": 0.142
+  },
+  "sentence_length_mean": {
+    "corpus_median": 19.0,
+    "max_allowed": 40,
+    "neighbour_mean": 12.0567
+  },
+  "paragraph_length_mean": {
+    "target_paragraphs": [
+      1,
+      3
+    ],
+    "neighbour_mean": 7.8333
+  },
+  "cta_type": {
+    "expected": false,
+    "usage_rate": 0.2078,
+    "preferred": [
+      "hiring",
+      "dm"
+    ],
+    "semantics": "author seeks opportunities and collaboration; the 'hiring' label does NOT mean the author is recruiting (measured: 0 of 9 such posts announce a vacancy)"
+  },
+  "hashtag_count": {
+    "min": 0,
+    "max": 5,
+    "usage_rate": 0.3636
+  },
+  "emoji_policy": "sparing, allowed",
+  "emoji_usage_rate": 0.2597,
+  "expected_numbers": [
+    "1.8",
+    "100",
+    "16.7",
+    "18",
+    "19",
+    "2214",
+    "23",
+    "2575.5",
+    "283.8",
+    "39.1",
+    "4",
+    "477.8",
+    "48.4",
+    "73.5",
+    "81.5",
+    "82.6",
+    "83.0",
+    "8364"
+  ],
+  "expected_number_count_min": 2,
+  "vocabulary": {
+    "topic_keywords": [
+      "llm",
+      "routing harness",
+      "routing",
+      "harness",
+      "fully",
+      "model",
+      "tasks",
+      "last",
+      "cpu",
+      "deterministic",
+      "processor",
+      "benchmark"
+    ],
+    "corpus_top_terms": [
+      "ai",
+      "see",
+      "gold",
+      "timeframe",
+      "below",
+      "time",
+      "break",
+      "hour",
+      "towards",
+      "trading",
+      "live",
+      "capital"
+    ]
+  },
+  "style_features": [
+    "plain engineer voice, concrete over promotional",
+    "no markdown (LinkedIn renders it literally)",
+    "bullets not expected",
+    "no generic LinkedIn filler"
+  ],
+  "banned_phrases": [
+    "in today's fast-paced world",
+    "in the ever-evolving",
+    "game-changer",
+    "game changer",
+    "unlock the power",
+    "dive deep",
+    "delve into",
+    "leverage the power",
+    "seamlessly",
+    "revolutionize",
+    "cutting-edge solutions",
+    "it's not just about"
+  ],
+  "retrieved_examples": [
+    {
+      "doc_id": 5807,
+      "created_at": "2026-08-22T16:57:52",
+      "bm25": 1.0,
+      "words": 165
+    },
+    {
+      "doc_id": 5840,
+      "created_at": "2025-07-19T06:40:31",
+      "bm25": 0.9019,
+      "words": 34
+    },
+    {
+      "doc_id": 5835,
+      "created_at": "2025-07-25T05:51:00",
+      "bm25": 0.8495,
+      "words": 97
+    },
+    {
+      "doc_id": 5814,
+      "created_at": "2026-05-30T06:45:12",
+      "bm25": 0.6189,
+      "words": 194
+    },
+    {
+      "doc_id": 5809,
+      "created_at": "2026-08-09T14:54:19",
+      "bm25": 0.6052,
+      "words": 169
+    },
+    {
+      "doc_id": 5811,
+      "created_at": "2026-07-05T15:13:11",
+      "bm25": 0.591,
+      "words": 174
+    }
+  ]
+}

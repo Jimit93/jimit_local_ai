@@ -1,0 +1,59 @@
+{
+  "iterations": [
+    {
+      "iteration": 0,
+      "label": "baseline",
+      "failure": "n/a - measurement only",
+      "layer": null,
+      "change": null,
+      "reason": "Establish the unmodified behaviour through the real frontend.",
+      "score_before": null,
+      "score_after": 0.6381,
+      "regression_result": "123 passed, 2 skipped (checkpoint 7af8800)"
+    },
+    {
+      "iteration": 1,
+      "label": "CTA plan + label guidance",
+      "failure": "Post ended 'Hiring for more engineers' while the audience was hiring managers - the author's intent inverted.",
+      "layer": "HARNESS (build_plan) + PROMPT rendering",
+      "change": "build_plan only falls back to preferred_ctas[0] when cta_expected is True; new style_engine.CTA_GUIDANCE translates the internal label; writer_prompt renders guidance text.",
+      "reason": "Measured: cta_expected is False (20.8% < 40%) yet a CTA was forced, and 0 of the 9 corpus posts matching the 'hiring' pattern announce a vacancy - the label is a misnomer.",
+      "score_before": 0.6381,
+      "score_after": 0.6791,
+      "key_metric": "audience 0.1333 -> 0.8 (inversion eliminated)",
+      "tradeoff": "structure 0.8333 -> 0.6667: removing the CTA left a single paragraph, so has_closing failed. Accepted - the audience gain outweighs it and the inversion was a correctness bug.",
+      "regression_result": "123 passed, 2 skipped"
+    },
+    {
+      "iteration": 2,
+      "label": "deterministic facts_used gate",
+      "failure": "18 measured numbers supplied, 0 cited, and the validator reported style_match 1.0 / SUCCESS - the QC could not see it.",
+      "layer": "VALIDATION",
+      "change": "validator.validate_post gained a facts_used check; added to CRITICAL_CHECKS so an evidence-free post cannot be SUCCESS.",
+      "reason": "numbers_grounded is satisfied vacuously by a post containing no numbers, so on its own it scores an evidence-free post at 100%.",
+      "score_before": 0.6791,
+      "score_after": 0.6599,
+      "key_metric": "detection works: facts_used False, status PARTIAL_SUCCESS, honest 0.9091 instead of a misleading 1.0",
+      "tradeoff": "NET NEGATIVE on score (0.6791 -> 0.6599). The repair pass fired, cost a second LLM call (+289 tokens, +13.4 s) and produced identical text. Kept anyway because it exposed the real bug below and the honest score is worth more than the flattering one.",
+      "discovery": "linkedin_writer built the repair prompt with no context=, so the facts were never shown to the repair call. It was asked to cite numbers it could not see - structurally unfixable.",
+      "regression_result": "123 passed, 2 skipped"
+    },
+    {
+      "iteration": 3,
+      "label": "obligate the evidence + give repair the facts",
+      "failure": "Model received the facts and cited none. Prompt carried three restrictive instructions about numbers and zero obligating.",
+      "layer": "PROMPT (justified only after the trace proved the data arrived)",
+      "change": "writer_prompt relabels the facts block as evidence and adds ONE obligating constraint, emitted only when facts exist; the repair prompt now passes the facts as context.",
+      "reason": "Prompt reconstruction was byte-exact at 3311 chars, so the model demonstrably had the numbers. With only restrictive instructions the safe move is to state none - so one counterweight was added, not a rewrite.",
+      "score_before": 0.6599,
+      "score_after": 0.7914,
+      "key_metric": "factual 0.5 -> 1.0, evidence cited on the FIRST call (23 tasks, 83.0%, 81.5%), llm_calls back to 1",
+      "tradeoff": "audience 0.80 -> 0.7333 and technical 0.80 -> 0.7333, both from fewer audience/technical words in this particular sample. Within run-to-run variation at n=1.",
+      "regression_result": "123 passed, 2 skipped + 43 new regression tests pass"
+    }
+  ],
+  "stop_condition": {
+    "stopped": true,
+    "reason": "Both localised failures are fixed and covered by deterministic tests, cost is back to the one-LLM-call design target, and no regression exists. The remaining gaps (content keyword coverage, hook-type mismatch, single-paragraph output) are separate issues already queued in docs/feature_backlog.md; adding more prompt text for them would trade the project's core principle for small, unmeasurable gains."
+  }
+}

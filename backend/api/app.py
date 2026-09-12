@@ -96,6 +96,23 @@ class SettingsIn(BaseModel):
     max_style_examples: int | None = None
 
 
+class ScoreIn(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+    topic: str = ""
+    audience: str = ""
+    pillar: str = ""
+    length: str = "medium"
+    facts: str = ""
+    validation: dict = Field(default_factory=dict)
+    metrics: dict = Field(default_factory=dict)
+
+
+class FeedbackIn(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+    post: str = ""
+    run_id: str = ""
+
+
 class BenchmarkIn(BaseModel):
     suites: list[str] | None = None
     include_baseline: bool = True
@@ -268,6 +285,55 @@ def benchmark_run(inp: BenchmarkIn) -> dict:
 
     return run_benchmark(suites=inp.suites, include_baseline=inp.include_baseline,
                          limit=inp.limit)
+
+
+@app.get("/api/evaluation/report")
+def evaluation_report() -> dict:
+    """Serve the predicted-vs-actual artifacts written by the QA pass."""
+    d = Path(REPORTS_DIR) / "evaluation"
+    out: dict = {}
+    for key, name in (("predicted", "predicted_profile.json"),
+                      ("comparison", "comparison.json"),
+                      ("iterations", "iterations.json")):
+        f = d / name
+        if f.exists():
+            out[key] = json.loads(f.read_text(encoding="utf-8"))
+    if not out:
+        raise HTTPException(404, "no evaluation has been run yet")
+    return out
+
+
+@app.post("/api/evaluation/score")
+def evaluation_score(inp: ScoreIn) -> dict:
+    """Score a post against the predicted profile for its brief. No model call."""
+    from backend.benchmarks.evaluation import build_predicted_profile, evaluate
+
+    predicted = build_predicted_profile(
+        inp.topic, audience=inp.audience, pillar=inp.pillar, facts=inp.facts,
+        length=inp.length)
+    if "error" in predicted:
+        raise HTTPException(400, predicted["error"])
+    result = evaluate(inp.text, predicted, topic=inp.topic, audience=inp.audience,
+                      facts=inp.facts, validation=inp.validation, metrics=inp.metrics)
+    return {"predicted": predicted, "evaluation": result}
+
+
+@app.post("/api/feedback")
+def post_feedback(inp: FeedbackIn) -> dict:
+    """Classify feedback to the layer that owns the fix, then persist it."""
+    from backend.services.feedback import record_feedback
+
+    out = record_feedback(inp.text, post=inp.post, run_id=inp.run_id)
+    if "error" in out:
+        raise HTTPException(400, out["error"])
+    return out
+
+
+@app.get("/api/feedback")
+def get_feedback(limit: int = 50) -> dict:
+    from backend.services.feedback import list_feedback
+
+    return {"items": list_feedback(limit)}
 
 
 @app.get("/api/settings")
