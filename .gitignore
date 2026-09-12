@@ -1,0 +1,18 @@
+# Local data: your LinkedIn corpus, embeddings, trained models and logs.
+# None of this should ever be committed or shared.
+data/
+reports/_*
+reports/linkedin_backtest.json
+config/style_profile.json
+*.db
+*.db-wal
+*.db-shm
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+frontend/node_modules/
+frontend/dist/
