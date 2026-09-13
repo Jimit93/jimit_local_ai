@@ -334,13 +334,16 @@ def p_llm(task: str, ctx: dict) -> ProcessorResult:
     if payload:
         blocks.append(("Text supplied by the user", payload))
 
+    from backend.harness.completion import budget_instruction
+
     context, acct = build_context(blocks)
     prompt = build_prompt(
         objective="Answer the user's request accurately and concisely.",
         task=task,
         context=context,
         constraints=["Do not invent facts, numbers or dates.",
-                     "If the context is insufficient, say what is missing."],
+                     "If the context is insufficient, say what is missing.",
+                     budget_instruction(ctx.get("max_tokens", 400))],
     )
     system = SYSTEM_ANALYST if ctx.get("stats_block") else SYSTEM_BASE
     try:

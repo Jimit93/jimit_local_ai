@@ -62,22 +62,27 @@ def code_edit_prompt(*, request: str, context: str, failure: str = "", constrain
                         constraints=cons, output_format=EDIT_FORMAT)
 
 
-def code_answer_prompt(*, request: str, context: str) -> str:
+def code_answer_prompt(*, request: str, context: str, max_tokens: int = 600) -> str:
+    from backend.harness.completion import budget_instruction
+
     return build_prompt(
         objective="Answer the user's question about their code.",
         task=request, context=context,
         constraints=["Refer to functions and files by their exact names in backticks.",
                      "If the provided code does not answer the question, say which file or symbol is missing.",
-                     "Be concise: at most 12 sentences or a short list."],
+                     budget_instruction(max_tokens)],
     )
 
 
-def code_review_prompt(*, diff: str, findings: str) -> str:
+def code_review_prompt(*, diff: str, findings: str, max_tokens: int = 500) -> str:
+    from backend.harness.completion import budget_instruction
+
     return build_prompt(
         objective="Review this change for correctness bugs, missing error handling and missing tests.",
         task="Report only real problems, most severe first, as a short list: file:line - problem - fix.",
         context=f"## Diff\n{diff}\n\n## Automated findings (already verified)\n{findings or 'none'}",
-        constraints=["Do not repeat the automated findings.", "If there are no real problems, reply exactly: no issues found."],
+        constraints=["Do not repeat the automated findings.", "If there are no real problems, reply exactly: no issues found.",
+                     budget_instruction(max_tokens)],
     )
 
 

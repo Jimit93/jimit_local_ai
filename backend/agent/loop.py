@@ -127,7 +127,7 @@ def _default_llm(prompt: str, **kw):
         raise
     except (RuntimeError, urllib.error.URLError, ConnectionError, TimeoutError, OSError) as e:
         r = LLM.generate(prompt, system=kw.get("system"), max_tokens=kw.get("max_tokens", 600),
-                         temperature=kw.get("temperature", 0.1))
+                         temperature=kw.get("temperature", 0.1), finish=kw.get("finish", "prose"))
         r.meta.update({"tier": "general", "fallback_reason": f"{type(e).__name__}: {str(e)[:160]}"})
         return r
 
@@ -360,7 +360,7 @@ def _tiers(ctx: Ctx) -> list[str]:
 
 
 def _llm_call(ctx: Ctx, prompt: str, *, system: str, max_tokens: int, temperature: float = 0.1,
-              tier_order: list[str] | None = None) -> tuple[object | None, str, str | None]:
+              tier_order: list[str] | None = None, finish: str = "prose") -> tuple[object | None, str, str | None]:
     """Cache -> governor admission -> tiered model with RAM fallback. Returns (result, method, error)."""
     from backend.db import query, remember
 
@@ -380,7 +380,7 @@ def _llm_call(ctx: Ctx, prompt: str, *, system: str, max_tokens: int, temperatur
         try:
             scale = adm.degrade.get("max_tokens_scale", 1.0)
             r = ctx.llm(prompt, tier=tier, system=system, max_tokens=max(128, int(max_tokens * scale)),
-                        temperature=temperature, task_id=ctx.st["id"])
+                        temperature=temperature, task_id=ctx.st["id"], finish=finish)
         except Exception as e:
             name = type(e).__name__
             errors.append(f"{tier}: {name}: {str(e)[:200]}")
@@ -548,8 +548,8 @@ def h_answer(ctx: Ctx) -> Outcome:
             ans = f"This error was seen before ({known.get('count')}x). It was resolved by: {known['resolution']}"
             ctx.st["last_output"] = ans
             return Outcome(True, summary=ans[:300], method="memory", confidence=0.92)
-    prompt = code_answer_prompt(request=ctx.st["task"], context=ctx.data.get("context", ""))
-    r, method, err = _llm_call(ctx, prompt, system=SYSTEM_CODER, max_tokens=600, temperature=0.2)
+    prompt = code_answer_prompt(request=ctx.st["task"], context=ctx.data.get("context", ""), max_tokens=600)
+    r, method, err = _llm_call(ctx, prompt, system=SYSTEM_CODER, max_tokens=600, temperature=0.2, finish="prose")
     if r is None:
         return Outcome(False, error=f"no model could answer: {err}", method="llm_small")
     text = redact(r.text.strip())[0]
@@ -598,7 +598,8 @@ def h_propose_edit(ctx: Ctx) -> Outcome:
     prompt = code_edit_prompt(request=ctx.st["task"], context=ctx.data.get("context", ""), failure=failure[-3000:],
                               allowed_files=allowed)
     order = _tiers(ctx) if ctx.step["attempts"] == 1 else ["capable", "small"]
-    r, method, err = _llm_call(ctx, prompt, system=SYSTEM_CODER, max_tokens=900, temperature=0.1, tier_order=order)
+    r, method, err = _llm_call(ctx, prompt, system=SYSTEM_CODER, max_tokens=900, temperature=0.1, tier_order=order,
+                               finish="edits")
     if r is None:
         return Outcome(False, error=f"no model produced an edit: {err}", method="llm_small")
     llm_calls = 0 if method == "cache" else 1
@@ -771,8 +772,8 @@ def h_llm_review(ctx: Ctx) -> Outcome:
         why = ("not requested (set deep review for a model pass)" if not deep else
                "diff too large for the local model's context" if len(diff) > 12000 else "CPU protection active")
         return Outcome(True, summary=f"model review skipped: {why}", method="skipped", skipped=True)
-    prompt = code_review_prompt(diff=diff, findings="\n".join(ctx.data.get("static_findings", [])))
-    r, method, err = _llm_call(ctx, prompt, system=SYSTEM_CODER, max_tokens=500)
+    prompt = code_review_prompt(diff=diff, findings="\n".join(ctx.data.get("static_findings", [])), max_tokens=500)
+    r, method, err = _llm_call(ctx, prompt, system=SYSTEM_CODER, max_tokens=500, finish="prose")
     if r is None:
         return Outcome(False, error=err, method="llm_small")
     ctx.data["model_review"] = redact(r.text)[0]

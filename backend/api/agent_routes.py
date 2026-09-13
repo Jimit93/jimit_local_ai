@@ -287,6 +287,20 @@ def ram_reclaim(inp: ReclaimIn) -> dict:
     return RAM.reclaim(inp.required_gb, approved=inp.approved)
 
 
+class TerminateIn(BaseModel):
+    pid: int
+    create_time: float | None = None
+    name: str | None = None
+
+
+@router.post("/ram/terminate")
+def ram_terminate(inp: TerminateIn) -> dict:
+    """One explicitly approved process; no model unloading, no allowlist sweep."""
+    from backend.agent import ram as RAM
+
+    return RAM.terminate_approved(inp.pid, inp.create_time, inp.name)
+
+
 @router.post("/ram/allowlist")
 def ram_allowlist(inp: AllowlistIn) -> dict:
     from backend.agent import ram as RAM

@@ -40,6 +40,8 @@ _RECENT: dict[str, deque] = {}
 def _touch(ws: Path, rel: str, action: str) -> None:
     dq = _RECENT.setdefault(str(ws), deque(maxlen=60))
     dq.appendleft({"path": rel, "action": action, "ts": time.time()})
+    if action in ("write", "edit", "rename", "delete"):
+        _GIT_STATUS_CACHE.pop(str(ws), None)  # our own change must show up immediately
 
 
 def recent_files(workspace: str, limit: int = 30) -> list[dict]:
@@ -584,7 +586,11 @@ def run_command(workspace: str | Path, argv: list[str], *, timeout_s: float | No
     if not d.allowed:
         policy.audit("run_command", shown, "deny", d.risk, d.reason, task_id=task_id)
         raise policy.PolicyError(d.reason)
-    policy.audit("run_command", shown, "allow", d.risk, d.reason, task_id=task_id)
+    # Denials, approvals and anything an agent task runs are always audited. Read-only
+    # allowlisted commands from UI polling (git status every few seconds) are not: they
+    # would bury the entries that matter.
+    if task_id is not None or d.risk != policy.RISK_SAFE:
+        policy.audit("run_command", shown, "allow", d.risk, d.reason, task_id=task_id)
     cap = child_cpu_cap()
     r = run_process(policy.resolve_executable(argv), cwd=str(ws),
                     env=policy.scrubbed_env(env_extra),
@@ -704,10 +710,16 @@ def is_git_repo(workspace: str) -> bool:
     return (ws / ".git").exists() or any((p / ".git").exists() for p in ws.parents)
 
 
-def git_status(workspace: str) -> dict:
+_GIT_STATUS_CACHE: dict[str, tuple[float, dict]] = {}
+
+
+def git_status(workspace: str, *, max_age_s: float = 3.0) -> dict:
     ws = policy.resolve_workspace(workspace)
     if not is_git_repo(str(ws)):
         return {"repo": False, "files": [], "branch": None}
+    hit = _GIT_STATUS_CACHE.get(str(ws))
+    if hit and time.time() - hit[0] < max_age_s:
+        return hit[1]
     r = _git(ws, ["status", "--porcelain=v1", "-b", "--untracked-files=normal"])
     if r["exit_code"] != 0:
         raise RuntimeError(r["output"][:300])
@@ -722,7 +734,9 @@ def git_status(workspace: str) -> dict:
                 path = path.split(" -> ", 1)[1]
             files.append({"path": path, "index": code[0], "worktree": code[1],
                           "status": _git_label(code)})
-    return {"repo": True, "branch": branch, "clean": not files, "count": len(files), "files": files}
+    out = {"repo": True, "branch": branch, "clean": not files, "count": len(files), "files": files}
+    _GIT_STATUS_CACHE[str(ws)] = (time.time(), out)
+    return out
 
 
 def _git_label(code: str) -> str:

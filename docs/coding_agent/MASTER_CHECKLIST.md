@@ -72,6 +72,23 @@ with the reason; `[ ]` = not started.
 - llama.cpp 10 threads = 22.5 tok/s @ 58.5% vs 16 threads = 22.1 tok/s @ 67.5% → default threads from cap.
 - Embeddings for code ranking not adopted (MiniLM load ≈ 20 s; BM25 fused MRR 0.949).
 
+## Improvement candidates (designed, NOT implemented — need a baseline first)
+
+Source: user-supplied "AI App Development Lifecycle & Rapid Iteration" notes (Describe →
+Generate → Test → Refine; many small iterations beat one big prompt).
+
+- **I1 Micro-iterations for medium/high-complexity edits.** Today one task = one edit proposal
+  for the whole request (the "one big prompt" failure mode for a 3B model). Plan: split into
+  <= 5 increments (deterministic first: explicit list items, "and also", one file per increment;
+  small-model plan only if that fails), each with its own checkpoint + propose/apply/verify/repair;
+  a failure rolls back and repairs only that increment. Not 20×: each model iteration costs
+  ~30–60 s CPU here. Low-complexity fixes stay single-cycle.
+  Measure: multi-part feature tasks, single-cycle (baseline) vs incremental — success rate,
+  LLM calls, tokens, wall time.
+- **I2 Human Refine step.** A follow-up in the same session ("now also…", "make it…") continues the
+  previous task's files, diff and checkpoint chain instead of starting cold.
+  Measure: follow-up success and context tokens vs a fresh task.
+
 ## Open user requests
 - Latest coder models: qwen3-coder 30b (19 GB) does not fit 16.7 GB RAM; deepseek-coder-v2 16b
   lite (8.9 GB) fits only after RAM reclaim; qwen2.5-coder 1.5b/3b/7b fit. **Download needs user OK.**

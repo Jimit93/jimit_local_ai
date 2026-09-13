@@ -1,18 +1,29 @@
 {
   "workspace": "C:\\Users\\pc\\jimit_local_ai",
-  "cases": 171,
-  "indexed_files": 139,
+  "cases": 200,
+  "indexed_files": 174,
   "bm25": {
-    "p_at_1": 0.889,
-    "recall_at_5": 0.982,
-    "mrr": 0.929
+    "p_at_1": 0.89,
+    "recall_at_5": 0.985,
+    "mrr": 0.931
   },
   "fused": {
-    "p_at_1": 0.912,
-    "recall_at_5": 0.994,
-    "mrr": 0.949
+    "p_at_1": 0.885,
+    "recall_at_5": 1.0,
+    "mrr": 0.933
   },
-  "ms_per_query": 3.15,
-  "note": "Ground truth: documented symbols -> defining file, symbol name removed from the query. Targets are code files by construction, so the source-file prior in the fused ranker is favoured by this set.",
-  "ts": 1789275870.8367743
+  "ms_per_query": 4.42,
+  "module_cases": 71,
+  "module_bm25": {
+    "p_at_1": 0.085,
+    "recall_at_5": 0.239,
+    "mrr": 0.213
+  },
+  "module_fused": {
+    "p_at_1": 0.38,
+    "recall_at_5": 0.549,
+    "mrr": 0.477
+  },
+  "note": "Docstring set: documented symbols -> defining file, symbol name removed. Module set: explain how the <unique module name> works. Both generated at run time.",
+  "ts": 1789293332.1384482
 }

@@ -79,6 +79,16 @@ def test_ranking_uses_content_symbols_and_mentions(workspace):
     assert r3["files"][0]["path"] == "app/handlers.py" and "symbol_match" in r3["files"][0]["signals"]
 
 
+def test_class_phrasing_and_module_names_point_at_the_file(workspace):
+    _add(workspace, {**EXTRA, "app/governor.py": '"""Load control."""\n\n\nclass Governor:\n    """Defers heavy work."""\n',
+                     "app/notes.ts": "// explain how the Governor class decides to defer heavy work\nexport const x = 1;\n"})
+    PI.build(workspace)
+    r = PI.rank_files(workspace, "explain how the Governor class decides to defer heavy work")
+    assert r["files"][0]["path"] == "app/governor.py"
+    assert {"symbol_match", "name_match"} <= set(r["files"][0]["signals"])
+    assert PI.rank_files(workspace, "how does the router dispatch requests")["files"][0]["path"] == "app/router.py"
+
+
 def test_traceback_locations_boost_the_failing_file(workspace):
     _add(workspace, EXTRA)
     PI.build(workspace)

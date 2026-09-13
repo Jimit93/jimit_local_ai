@@ -55,7 +55,12 @@ async def lifespan(_app: FastAPI):
         _warm["state"] = "ready"
         _warm["total_ms"] = round((time.perf_counter() - t0) * 1000, 1)
 
-    threading.Thread(target=_bg, daemon=True).start()
+    # JLA_SKIP_WARMUP=1: a second (test) instance must not load another copy of the model.
+    if os.environ.get("JLA_SKIP_WARMUP") == "1":
+        _warm["state"] = "ready"
+        _warm["skipped"] = True
+    else:
+        threading.Thread(target=_bg, daemon=True).start()
     yield
     worker().stop(2.0)
     governor().stop()

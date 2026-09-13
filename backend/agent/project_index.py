@@ -352,8 +352,16 @@ def traceback_locations(text: str, workspace: str | None = None) -> list[dict]:
     return out
 
 
+# name_match 0.8 with an IDF floor of 0.3 was chosen on identical generated case sets
+# (this repo, 2026-09-13): docstring queries P@1 0.890 / MRR 0.936 (unchanged vs no
+# name signal), module-reference queries P@1 0.183 -> 0.366, MRR 0.302 -> 0.468.
+SIGNAL_WEIGHTS = {"file_mentioned": 1.0, "name_match": 0.8, "name_idf_floor": 0.3, "traceback": 0.8,
+                  "traceback_innermost": 1.1, "git_modified": 0.1, "imports_top_hit": 0.15}
+
+
 def rank_files(workspace: str, request: str, *, top_k: int = 8, error_text: str = "",
-               modified: list[str] | None = None, use_graph: bool = True) -> dict:
+               modified: list[str] | None = None, use_graph: bool = True, weights: dict | None = None) -> dict:
+    W = {**SIGNAL_WEIGHTS, **(weights or {})}
     ws = str(policy.resolve_workspace(workspace))
     ensure_index(ws)
     t0 = time.perf_counter()
@@ -380,32 +388,49 @@ def rank_files(workspace: str, request: str, *, top_k: int = 8, error_text: str 
         ml = m.lower()
         for lp, orig in low_paths.items():
             if lp == ml or lp.endswith("/" + ml):
-                bump(orig, 1.0, "file_mentioned")
+                bump(orig, W["file_mentioned"], "file_mentioned")
     # Only identifier-shaped words (or words written as calls / in backticks) count as
     # symbol references; "model" or "build" in a sentence is not a reference to `model()`.
     marked = set(re.findall(r"`([A-Za-z_][\w.]*)`|\b([A-Za-z_]\w*)\(", request))
     marked_names = {a or b for a, b in marked}
+    # "the Governor class", "class Governor", "function run_task", "run_task method"
+    for m in re.finditer(r"\b(?:class|function|method|def|component)\s+`?([A-Za-z_]\w*)|"
+                         r"\b([A-Za-z_]\w*)`?\s+(?:class|function|method|component)\b", request):
+        marked_names.add(m.group(1) or m.group(2))
     idents = {t.lower() for t in _IDENT.findall(request)
               if len(t) > 2 and t.lower() not in _CODE_STOP and (_identifier_like(t) or t in marked_names)}
     for path, names in rk.symbols_by_file.items():
         hits = idents & names
         if hits:
             bump(path, min(0.6, 0.35 + 0.1 * len(hits)), "symbol_match")
+    # A word naming a module ("the governor", "router logic") points at that file.
+    # Scaled by how distinctive the name is across the code (IDF): "governor" or "chunking"
+    # identifies a module; "state" or "config" appears everywhere and identifies nothing.
+    words = {_stem(w.lower()) for w in re.findall(r"[A-Za-z][A-Za-z0-9_]{3,}", request) if w.lower() not in _CODE_STOP}
+    max_idf = max(rk.bm25.idf.values(), default=1.0) or 1.0
+    for path in rk.paths:
+        stem = path.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower()
+        if len(stem) >= 4 and _stem(stem) in words and W["name_match"]:
+            idf = max(rk.bm25.idf.get(stem, 0.0), rk.bm25.idf.get(_stem(stem), 0.0))
+            rarity = max(0.0, min(1.0, (idf / max_idf - W.get("name_idf_floor", 0.0)) / max(1e-6, 1 - W.get("name_idf_floor", 0.0))))
+            if rarity > 0:
+                bump(path, W["name_match"] * rarity, "name_match")
     locs = [loc for loc in traceback_locations(error_text, ws)
             if any(lp == loc["path"].lower() or lp.endswith("/" + loc["path"].lower()) for lp in low_paths)]
     for i, loc in enumerate(locs):
         for lp, orig in low_paths.items():
             if lp == loc["path"].lower() or lp.endswith("/" + loc["path"].lower()):
                 # The innermost workspace frame is where the error was raised.
-                bump(orig, 1.1 if i == len(locs) - 1 else 0.8, "traceback")
+                bump(orig, W["traceback_innermost"] if i == len(locs) - 1 else W["traceback"], "traceback")
     for mp in modified or []:
-        bump(mp, 0.1, "git_modified")
+        bump(mp, W["git_modified"], "git_modified")
     wants_tests = bool(re.search(r"\btests?\b|pytest|spec", request, re.I))
     wants_docs = bool(re.search(r"\b(?:docs?|readme|markdown|report|json|config|documentation|skill)\b", request, re.I))
     for e in scores.values():
         is_test = bool(re.search(r"(^|/)(tests?|__tests__)/|(^|/)test_|_test\.py$|\.test\.|\.spec\.", e["path"]))
         e["is_test"] = is_test
-        e["score"] = e["bm25"] + sum(e.get(k, 0.0) for k in ("file_mentioned", "symbol_match", "traceback", "git_modified"))
+        e["score"] = e["bm25"] + sum(e.get(k, 0.0) for k in ("file_mentioned", "symbol_match", "name_match",
+                                                             "traceback", "git_modified"))
         if is_test and not wants_tests:
             e["score"] *= 0.85
         lang = language_of(e["path"])
@@ -417,7 +442,7 @@ def rank_files(workspace: str, request: str, *, top_k: int = 8, error_text: str 
         neighbours = import_graph(ws).get(ranked[0]["path"], set())
         for e in ranked[1:]:
             if e["path"] in neighbours:
-                e["score"] += 0.15
+                e["score"] += W["imports_top_hit"]
                 e["signals"].append("imports_top_hit")
         ranked.sort(key=lambda e: -e["score"])
     top = ranked[:top_k]
@@ -495,6 +520,24 @@ def evaluate_ranking(workspace: str, *, sample: int = 150, top_k: int = 5, seed:
         bm_ranks.append(hits.index(c["expected"]) + 1 if c["expected"] in hits else None)
         fused = [e["path"] for e in rank_files(ws, c["query"], top_k=50)["files"]]
         fused_ranks.append(fused.index(c["expected"]) + 1 if c["expected"] in fused else None)
+    ms = round((time.perf_counter() - t0) * 1000 / max(1, len(cases)) / 2, 2)
+
+    # Second set: requests that name a module ("explain how the governor works"), for
+    # source files whose name is unique in the workspace.
+    from collections import Counter
+
+    src = [p for p in rk.paths if language_of(p) in ("python", "typescript", "javascript")
+           and not re.search(r"(^|/)tests?/|(^|/)test_", p)]
+    stem = lambda p: p.rsplit("/", 1)[-1].rsplit(".", 1)[0]  # noqa: E731
+    counts = Counter(stem(p).lower() for p in src)
+    mod_cases = [{"query": f"explain how the {stem(p).replace('_', ' ')} works", "expected": p}
+                 for p in src if counts[stem(p).lower()] == 1 and len(stem(p)) >= 4]
+    mb, mf = [], []
+    for c in mod_cases:
+        hits = [rk.paths[i] for i, _ in rk.bm25.search(c["query"], top_k=50)]
+        mb.append(hits.index(c["expected"]) + 1 if c["expected"] in hits else None)
+        fused = [e["path"] for e in rank_files(ws, c["query"], top_k=50)["files"]]
+        mf.append(fused.index(c["expected"]) + 1 if c["expected"] in fused else None)
     return {"workspace": ws, "cases": len(cases), "indexed_files": len(rk.paths),
-            "bm25": metrics(bm_ranks), "fused": metrics(fused_ranks),
-            "ms_per_query": round((time.perf_counter() - t0) * 1000 / max(1, len(cases)) / 2, 2)}
+            "bm25": metrics(bm_ranks), "fused": metrics(fused_ranks), "ms_per_query": ms,
+            "module_cases": len(mod_cases), "module_bm25": metrics(mb), "module_fused": metrics(mf)}

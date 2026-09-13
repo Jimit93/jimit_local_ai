@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "agent-backend-test",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "scripts\\test_backend.bat"],
+      "port": 8078
+    },
+    {
+      "name": "agent-ui-test",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "scripts\\test_frontend.bat"],
+      "port": 5174
+    }
+  ]
+}

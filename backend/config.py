@@ -114,9 +114,10 @@ class AgentSettings:
     max_auto_resumes: int = 2
     # Code-model tiers (Ollama names). Cheapest first; the capable tier is only used
     # when RAM allows and a cheaper attempt was insufficient.
-    code_model_small: str = os.environ.get("JLA_CODE_MODEL_SMALL", "qwen2.5-coder:0.5b")
-    code_model_capable: str = os.environ.get(
-        "JLA_CODE_MODEL_CAPABLE", "deepseek-coder:6.7b-instruct-q4_K_M")
+    # Pulled with the user's approval on 2026-09-13. Older installed models remain as
+    # fallbacks in llm/manager.py if these are removed.
+    code_model_small: str = os.environ.get("JLA_CODE_MODEL_SMALL", "qwen2.5-coder:3b")
+    code_model_capable: str = os.environ.get("JLA_CODE_MODEL_CAPABLE", "deepseek-coder-v2:16b")
 
 
 @dataclass

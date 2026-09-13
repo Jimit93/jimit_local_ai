@@ -206,6 +206,20 @@ def reclaim_agent_owned(*, keep_models: set[str] | None = None, task_id: str | N
     return actions
 
 
+def terminate_approved(pid: int, create_time: float | None, name: str | None, *, task_id: str | None = None) -> dict:
+    """Close exactly one user-approved process (and nothing else). Protected ones are refused."""
+    match = next((p for p in classify_processes(min_rss_mb=0) if p["pid"] == pid), None)
+    if match is None:
+        return {"pid": pid, "ok": False, "reason": "process not found"}
+    if match["category"] == "protected":
+        policy.audit("kill_process", f"{match['name']}({pid})", "deny", policy.RISK_HIGH, "protected process", task_id=task_id)
+        return {"pid": pid, "ok": False, "reason": "protected process"}
+    r = _terminate(pid, create_time if create_time is not None else match["create_time"], name or match["name"])
+    policy.audit("kill_process", f"{match['name']}({pid})", "approved" if r["ok"] else "deny", policy.RISK_HIGH,
+                 "user approved single process: " + json.dumps(r), task_id=task_id)
+    return {"name": match["name"], "available_gb_after": available_gb(), **r}
+
+
 def reclaim(required_gb: float, *, approved: list[dict] | None = None, use_allowlist: bool = True,
             keep_models: set[str] | None = None, dry_run: bool = False,
             task_id: str | None = None) -> dict:

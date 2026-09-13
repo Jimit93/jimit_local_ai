@@ -1,0 +1,111 @@
+{
+  "ts": 1789292777.0283122,
+  "summary": {
+    "max_tokens": 60,
+    "n": 4,
+    "A_raw_complete_rate": 0.0,
+    "A_raw_truncated_rate": 1.0,
+    "B_trim_complete_rate": 1.0,
+    "C_complete_rate": 1.0,
+    "C_natural_finish_rate": 0.75,
+    "C_mean_words": 35.8
+  },
+  "rows": [
+    {
+      "prompt": "Explain in detail how a CPU governor with hysteresis protect",
+      "model": "qwen2.5-coder:3b",
+      "A_raw": {
+        "stop": "length",
+        "complete": false,
+        "words": 55,
+        "tail": " the current state of the system.\nThe basic idea behind a CPU governor"
+      },
+      "B_trim": {
+        "complete": true,
+        "words": 48,
+        "action": "trimmed_to_last_sentence",
+        "tail": "e CPU speed based on the workload and the current state of the system."
+      },
+      "C_budget_trim": {
+        "stop": "stop",
+        "complete": true,
+        "natural_finish": true,
+        "words": 44,
+        "action": null,
+        "tail": "elps maintain a stable operating temperature and prevents overheating."
+      }
+    },
+    {
+      "prompt": "Describe every step a coding agent should take to fix a fail",
+      "model": "qwen2.5-coder:3b",
+      "A_raw": {
+        "stop": "length",
+        "complete": false,
+        "words": 47,
+        "tail": "essage**: The error message from the test failure should provide clues"
+      },
+      "B_trim": {
+        "complete": true,
+        "words": 21,
+        "action": "dropped_partial_list_item+dropped_dangling_leadin",
+        "tail": "s to ensure that the changes do not introduce new bugs or regressions."
+      },
+      "C_budget_trim": {
+        "stop": "length",
+        "complete": true,
+        "natural_finish": false,
+        "words": 47,
+        "action": "already_complete",
+        "tail": "ew functionality.\n6. Commit the changes and push to the repository.\n7."
+      }
+    },
+    {
+      "prompt": "Explain why BM25 ranking works well for finding relevant sou",
+      "model": "qwen2.5-coder:3b",
+      "A_raw": {
+        "stop": "length",
+        "complete": false,
+        "words": 49,
+        "tail": "uments. Here are some reasons why BM25 works well for this purpose:\n\n1"
+      },
+      "B_trim": {
+        "complete": true,
+        "words": 37,
+        "action": "trimmed_to_last_sentence",
+        "tail": "e for finding relevant source files in large collections of documents."
+      },
+      "C_budget_trim": {
+        "stop": "stop",
+        "complete": true,
+        "natural_finish": true,
+        "words": 41,
+        "action": null,
+        "tail": " terms that are common across documents but rare in the entire corpus."
+      }
+    },
+    {
+      "prompt": "List and explain the risks of letting a language model edit ",
+      "model": "qwen2.5-coder:3b",
+      "A_raw": {
+        "stop": "length",
+        "complete": false,
+        "words": 50,
+        "tail": "f the file's contents. This could result in the model making incorrect"
+      },
+      "B_trim": {
+        "complete": true,
+        "words": 42,
+        "action": "trimmed_to_last_sentence",
+        "tail": " have the necessary knowledge or understanding of the file's contents."
+      },
+      "C_budget_trim": {
+        "stop": "stop",
+        "complete": true,
+        "natural_finish": true,
+        "words": 11,
+        "action": null,
+        "tail": " data loss, corruption, and potential misuse of sensitive information."
+      }
+    }
+  ]
+}

@@ -73,11 +73,24 @@ def _mark(key: str, delta: int, table: dict) -> None:
         pass
 
 
-def generate(prompt: str, **kw) -> LLMResult:
-    """Single funnel for every LLM call so usage is always accounted."""
+def _finish(r: LLMResult, mode: str) -> LLMResult:
+    """Never return a reply cut mid-sentence (or a half edit block) at the token limit."""
+    from backend.harness.completion import finish
+
+    r.text, meta = finish(r.text, r.stop_reason, mode)
+    r.meta["completion"] = meta
+    return r
+
+
+def generate(prompt: str, *, finish: str = "prose", **kw) -> LLMResult:
+    """Single funnel for every LLM call so usage is always accounted.
+
+    `finish`: "prose" (default) trims a truncated reply to its last complete sentence,
+    "edits" drops an unterminated edit block, "none" returns the raw text.
+    """
     _mark("llamacpp", +1, _busy)
     try:
-        r = llm().generate(prompt, **kw)
+        r = _finish(llm().generate(prompt, **kw), finish)
     finally:
         _mark("llamacpp", -1, _busy)
     USAGE["calls"] += 1
@@ -158,7 +171,7 @@ def _ensure_ram_for(model: dict, *, task_id: str | None = None) -> dict:
 
 def generate_code(prompt: str, *, tier: str = "small", system: str | None = None,
                   max_tokens: int = 700, temperature: float = 0.1, task_id: str | None = None,
-                  keep_alive: str = "3m") -> LLMResult:
+                  keep_alive: str = "3m", finish: str = "prose") -> LLMResult:
     """Code generation through a tiered Ollama model, RAM-checked and CPU-thread-capped."""
     from backend.llm.ollama_adapter import QwenOllamaAdapter
 
@@ -173,8 +186,8 @@ def generate_code(prompt: str, *, tier: str = "small", system: str | None = None
     threads = SETTINGS.llm.n_threads
     _mark(model["name"], +1, _ollama_busy)
     try:
-        r = ad.generate(prompt, system=system, max_tokens=max_tokens, temperature=temperature,
-                        options={"num_thread": threads, "num_ctx": 8192}, keep_alive=keep_alive)
+        r = _finish(ad.generate(prompt, system=system, max_tokens=max_tokens, temperature=temperature,
+                                options={"num_thread": threads, "num_ctx": 8192}, keep_alive=keep_alive), finish)
     finally:
         _mark(model["name"], -1, _ollama_busy)
     u = CODE_USAGE.setdefault(model["name"], {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "latency_ms": 0.0})

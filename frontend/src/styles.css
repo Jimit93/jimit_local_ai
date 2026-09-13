@@ -147,5 +147,72 @@ details[open] summary { margin-bottom: 10px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .err { border-left: 3px solid var(--bad); padding-left: 12px; color: var(--bad); font-size: 13px; }
+
+/* ------------------------------------------------------------ coding agent */
+.agent-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: start; }
+.ws-grid { display: grid; grid-template-columns: minmax(220px, 3fr) minmax(0, 8fr); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .agent-grid, .ws-grid { grid-template-columns: 1fr; } }
+.main:has(.agent-grid), .main:has(.ws-grid) { max-width: 1480px; }
+
+label.check { display: inline-flex; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0;
+  font-size: 12.5px; color: var(--text); margin: 0; cursor: pointer; }
+label.check input { width: auto; }
+button.btn.chip { font-size: 12px; padding: 5px 10px; font-weight: 500; }
+
+.transcript { display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow-y: auto; }
+.msg { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel-2); }
+.msg.agent { background: var(--bg); }
+.msg[role="button"] { cursor: pointer; }
+.msg[role="button"]:hover { border-color: var(--accent); }
+.msg .who { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.timeline li:last-child { border-bottom: 0; }
+.timeline .ic { width: 20px; height: 20px; flex: 0 0 20px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; background: var(--panel-2); color: var(--muted); }
+.timeline li.done .ic { background: rgba(61,220,151,0.16); color: var(--ok); }
+.timeline li.running .ic { background: rgba(77,163,255,0.2); color: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.timeline li.failed .ic { background: rgba(255,107,107,0.16); color: var(--bad); }
+.timeline li.skipped { opacity: 0.6; }
+.timeline li.pending b { color: var(--muted); font-weight: 500; }
+.step-summary { font-size: 12px; margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+.approval { border: 1px solid var(--warn); background: rgba(255,180,84,0.08); border-radius: var(--radius);
+  padding: 12px 14px; margin-bottom: 16px; }
+
+.decisions { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.decisions li { padding: 5px 0; border-bottom: 1px solid var(--line); }
+
+pre.diff, pre.code { margin: 0; max-height: 460px; overflow: auto; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 0; }
+pre.diff > div, pre.code > div { padding: 0 10px; white-space: pre; }
+pre.diff .add { background: rgba(61,220,151,0.12); color: #9ff0c9; }
+pre.diff .del { background: rgba(255,107,107,0.12); color: #ffb3b3; }
+pre.diff .hunk { color: var(--accent); }
+pre.diff .meta { color: var(--muted); }
+pre.code .ln { display: inline-block; width: 44px; color: var(--muted); user-select: none; text-align: right; margin-right: 12px; }
+.result-box { max-height: 420px; overflow: auto; }
+
+.tree { max-height: 640px; overflow: auto; font-size: 12.5px; }
+.tree-row { padding: 2px 6px; border-radius: 5px; cursor: pointer; white-space: nowrap; }
+.tree-row:hover { background: var(--panel-2); }
+.tree-row.dir { color: var(--muted); }
+.tree-row.sel { background: rgba(77,163,255,0.16); }
+.tree-mark { margin-left: 6px; font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 4px; }
+.tree-mark.modified { background: rgba(255,180,84,0.2); color: var(--warn); }
+.tree-mark.relevant { background: rgba(77,163,255,0.2); color: var(--accent); }
+.tree-mark.recent { color: var(--muted); }
+.list-row { padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; word-break: break-word; }
+.list-row[role="button"] { cursor: pointer; }
+.list-row[role="button"]:hover { color: var(--accent); }
+.audit { max-height: 420px; overflow: auto; }
+
+.viz-tip { position: absolute; pointer-events: none; background: #0b0d10; border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 9px; font-size: 11.5px; white-space: nowrap; z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+.viz-tip .sw, .viz-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px;
+  vertical-align: -1px; }
+.viz-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
 .toast { position: fixed; right: 20px; bottom: 20px; background: var(--panel-2);
   border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; font-size: 13px; }
