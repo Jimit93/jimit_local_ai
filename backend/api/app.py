@@ -27,7 +27,23 @@ _warm: dict = {"state": "cold"}
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Warm the model and the index in the background so the first request is fast."""
+    import os
+
     ensure_dirs()
+    from backend.agent.governor import governor
+    from backend.agent.proc import cap_current_process
+    from backend.agent.worker import worker
+
+    # Hard CPU cap for this server and everything it starts (llama.cpp, embeddings, tests).
+    # Enabled by start_backend.bat; off by default so test clients do not cap the test runner.
+    if os.environ.get("JLA_SELF_CPU_CAP", "0") == "1":
+        _warm["self_cpu_cap"] = {"percent": SETTINGS.agent.cpu_cap_percent - 5,
+                                 "applied": cap_current_process(SETTINGS.agent.cpu_cap_percent - 5)}
+    governor().start()
+    try:
+        _warm["recovered_tasks"] = worker().recover()
+    except Exception as e:
+        _warm["recover_error"] = str(e)
 
     def _bg() -> None:
         _warm["state"] = "warming"
@@ -41,6 +57,8 @@ async def lifespan(_app: FastAPI):
 
     threading.Thread(target=_bg, daemon=True).start()
     yield
+    worker().stop(2.0)
+    governor().stop()
 
 
 app = FastAPI(title="Jimit Local AI", version="1.0.0", lifespan=lifespan)
@@ -53,6 +71,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from backend.api.agent_routes import router as agent_router  # noqa: E402 - after app creation
+
+app.include_router(agent_router)
 
 # ------------------------------------------------------------------ models
 

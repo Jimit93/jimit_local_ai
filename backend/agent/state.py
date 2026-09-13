@@ -61,7 +61,7 @@ def new_task(workspace: str, request: str, *, session_id: str | None = None, int
 
 
 def make_step(name: str, kind: str, *, modifies: bool | None = None, max_attempts: int = 1,
-              timeout_s: float | None = None, critical: bool = False, predicted: dict | None = None) -> dict:
+              timeout_s: float | None = None, critical: bool = True, predicted: dict | None = None) -> dict:
     return {"name": name, "kind": kind, "status": "pending", "attempts": 0, "max_attempts": max_attempts,
             "modifies": kind in MODIFYING_KINDS if modifies is None else modifies,
             "timeout_s": timeout_s, "critical": critical, "method": None, "reason": None,

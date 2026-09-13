@@ -32,7 +32,24 @@ CATEGORIES = [
     "coding",
     "creative_generation",
     "reasoning",
+    "workspace",
 ]
+
+# Requests about the LinkedIn corpus never go to the coding rules, whatever verbs they use.
+_CORPUS_WORDS = re.compile(r"\b(?:linkedin|posts?|hashtags?|comments?|reactions?|my writing)\b", re.I)
+
+
+def _code_rule(t: str) -> tuple[str | None, float, str]:
+    """Workspace/coding requests, recognised by the coding-intent rules (no ML here)."""
+    if _CORPUS_WORDS.search(t):
+        return None, 0.0, ""
+    from backend.agent.intents import DETERMINISTIC, rule_intent
+
+    intent, conf, _how = rule_intent(t)
+    if intent is None or intent == "calculate":
+        return None, 0.0, ""
+    cat = "workspace" if intent in DETERMINISTIC else "coding"
+    return cat, conf, f"rule:{cat}/{intent}"
 
 # --- stage 1: high-precision rules -----------------------------------------
 
@@ -85,6 +102,9 @@ def rule_classify(text: str) -> tuple[str | None, float, str]:
     if re.search(r"\b(?:what(?:'s| is) (?:the )?(?:date|time)|today'?s date|current time|"
                  r"days? between|how many days (?:until|since))\b", t, re.I):
         return "deterministic", 0.95, "datetime_gate"
+    cat, conf, how = _code_rule(t)
+    if cat:
+        return cat, conf, how
     for cat, rx, conf in RULES:
         if rx.search(t):
             return cat, conf, f"rule:{cat}"

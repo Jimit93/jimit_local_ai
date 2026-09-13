@@ -51,6 +51,8 @@ class QwenOllamaAdapter(LocalLLM):
         temperature: float | None = None,
         top_p: float | None = None,
         stop: list[str] | None = None,
+        options: dict | None = None,
+        keep_alive: str | int | None = None,
     ) -> LLMResult:
         payload = {
             "model": self.name,
@@ -62,8 +64,12 @@ class QwenOllamaAdapter(LocalLLM):
                 "top_p": SETTINGS.llm.top_p if top_p is None else top_p,
                 "num_predict": max_tokens if max_tokens is not None else SETTINGS.llm.max_tokens,
                 "stop": stop or [],
+                "seed": SETTINGS.llm.seed,
+                **(options or {}),
             },
         }
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
         req = urllib.request.Request(
             f"{BASE}/api/generate",
             data=json.dumps(payload).encode(),

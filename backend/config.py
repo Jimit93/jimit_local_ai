@@ -98,8 +98,9 @@ class AgentSettings:
     cpu_emergency_percent: float = float(os.environ.get("JLA_CPU_EMERGENCY", 90))
     ram_min_available_gb: float = float(os.environ.get("JLA_RAM_MIN_GB", 1.0))
     sampler_interval_s: float = 1.0
-    # Controlled-loop limits.
-    max_iterations: int = 8
+    # Controlled-loop limits. Per task the iteration budget is len(plan) + repairs*6 + 4,
+    # never more than this hard cap.
+    max_iterations: int = 40
     max_repairs: int = 2
     step_timeout_s: float = 900.0
     task_timeout_s: float = float(os.environ.get("JLA_AGENT_TASK_TIMEOUT", 3600))

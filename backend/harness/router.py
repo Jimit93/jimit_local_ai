@@ -254,6 +254,65 @@ def p_linkedin_writer(task: str, ctx: dict) -> ProcessorResult:
     )
 
 
+def p_workspace_tool(task: str, ctx: dict) -> ProcessorResult:
+    """One sandboxed tool call for a deterministic coding intent. No model."""
+    from backend.agent.executor import run_intent_tool
+    from backend.agent.intents import classify_intent
+
+    t0 = time.perf_counter()
+    if ctx.get("task_id"):
+        # A tracked agent task already has a plan (possibly a one-step tool plan); the
+        # loop runs it so the timeline, state and checkpoints are recorded.
+        return ProcessorResult(None, 0.0, "workspace_tool", 0.0, "deterministic",
+                               error="tracked task: executed by the agent loop")
+    ir = ctx.get("_coding_intent") or classify_intent(task)
+    ctx["_coding_intent"] = ir
+    if not ir.deterministic:
+        return ProcessorResult(None, 0.0, "workspace_tool", (time.perf_counter() - t0) * 1000,
+                               "deterministic", error=f"'{ir.intent}' needs the agent loop",
+                               meta={"intent": ir.to_dict()})
+    if ir.intent in ("rename_file", "delete_file", "rollback") and not ctx.get("allow_edits"):
+        return ProcessorResult(None, 0.0, "workspace_tool", (time.perf_counter() - t0) * 1000,
+                               "deterministic", error="read-only: file changes need allow_edits",
+                               meta={"intent": ir.to_dict()})
+    res = run_intent_tool(ir, task, ctx.get("workspace"), session_id=ctx.get("session_id"),
+                          approved=bool(ctx.get("approved")))
+    res.meta["intent"] = ir.to_dict()
+    return res
+
+
+def p_coding_agent(task: str, ctx: dict) -> ProcessorResult:
+    """The controlled multi-step coding loop (hybrid: tools, NLP, memory, code models)."""
+    from backend.agent import loop as AL
+    from backend.agent.policy import workspace_roots
+
+    t0 = time.perf_counter()
+    try:
+        if ctx.get("task_id"):
+            st = AL.run_agent(ctx["task_id"], llm=ctx.get("llm"), cancel_event=ctx.get("cancel_event"))
+        else:
+            st = AL.create_task(ctx.get("workspace") or workspace_roots()[0], task,
+                                session_id=ctx.get("session_id"),
+                                options={"allow_edits": bool(ctx.get("allow_edits")),
+                                         "deep_review": bool(ctx.get("deep_review"))})
+            st = AL.run_agent(st["id"], llm=ctx.get("llm"), cancel_event=ctx.get("cancel_event"))
+    except Exception as e:
+        return ProcessorResult(None, 0.0, "coding_agent", (time.perf_counter() - t0) * 1000, "hybrid",
+                               error=f"{type(e).__name__}: {e}")
+    ev = st.get("evaluation") or {}
+    c = st["counters"]
+    ok = st["status"] in ("completed", "awaiting_approval")
+    return ProcessorResult(
+        result={"task_id": st["id"], "status": st["status"], "evaluation": ev,
+                "steps": [{k: s.get(k) for k in ("name", "kind", "status", "method", "summary")} for s in st["plan"]]},
+        confidence=(ev.get("match_score") or 0.8) if ok else 0.0,
+        processor="coding_agent(loop)", latency_ms=(time.perf_counter() - t0) * 1000, layer="hybrid",
+        llm_used=c["llm_calls"] > 0, llm_calls=c["llm_calls"], tokens=c["tokens"],
+        error=None if ok else f"{st['status']}: {(st.get('last_output') or '')[:300]}",
+        meta={"answer": st.get("last_output", ""), "task_id": st["id"]},
+    )
+
+
 def p_llm(task: str, ctx: dict) -> ProcessorResult:
     """Final fallback. Retrieval-grounded when the question is about the corpus."""
     t0 = time.perf_counter()
@@ -352,7 +411,11 @@ CHAINS: dict[str, list[Processor]] = {
     "ranking": [p_ranking, p_llm],
     "structured_data": [p_structured_data, p_llm],
     "creative_generation": [p_linkedin_writer],
-    "coding": [p_llm],
+    # Coding requests: an exact tool when one fits, otherwise the controlled loop, which
+    # itself escalates tool -> NLP -> memory -> small code model -> capable code model.
+    # Edits happen only when the caller passes an explicit workspace with allow_edits.
+    "coding": [p_workspace_tool, p_coding_agent],
+    "workspace": [p_workspace_tool, p_coding_agent],
     "reasoning": [p_llm],
 }
 

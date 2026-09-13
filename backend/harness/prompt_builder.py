@@ -24,6 +24,63 @@ SYSTEM_ANALYST = (
 )
 
 
+SYSTEM_CODER = (
+    "You are a careful senior software engineer working inside the user's local repository. "
+    "Base every statement on the provided code. Make the smallest change that satisfies the "
+    "request, keep the existing style, and never invent files, functions or APIs that are not "
+    "shown or requested."
+)
+
+EDIT_FORMAT = """Reply with edit blocks only, one per change, in exactly this format:
+
+path/to/file.py
+<<<<<<< SEARCH
+exact lines copied from the current file
+=======
+the new lines
+>>>>>>> REPLACE
+
+Rules: the SEARCH part must match the current file exactly, including indentation, and be
+unique in that file (include a few surrounding lines if needed). To create a new file use an
+empty SEARCH part. No explanations before or after the blocks."""
+
+
+def code_edit_prompt(*, request: str, context: str, failure: str = "", constraints: list[str] | None = None,
+                     allowed_files: list[str] | None = None) -> str:
+    cons = [
+        "Change only what the request needs; do not reformat or rename unrelated code.",
+        "Do not add dependencies.",
+    ]
+    if allowed_files:
+        cons.append("Edit only these files unless a new file is required: " + ", ".join(allowed_files))
+    if failure:
+        cons.append("Your previous attempt did not pass verification. Fix the cause shown under "
+                    "'Verification failure'; do not repeat the same change.")
+    cons += constraints or []
+    ctx = context + (f"\n\n## Verification failure\n{failure}" if failure else "")
+    return build_prompt(objective="Modify the code to satisfy the request.", task=request, context=ctx,
+                        constraints=cons, output_format=EDIT_FORMAT)
+
+
+def code_answer_prompt(*, request: str, context: str) -> str:
+    return build_prompt(
+        objective="Answer the user's question about their code.",
+        task=request, context=context,
+        constraints=["Refer to functions and files by their exact names in backticks.",
+                     "If the provided code does not answer the question, say which file or symbol is missing.",
+                     "Be concise: at most 12 sentences or a short list."],
+    )
+
+
+def code_review_prompt(*, diff: str, findings: str) -> str:
+    return build_prompt(
+        objective="Review this change for correctness bugs, missing error handling and missing tests.",
+        task="Report only real problems, most severe first, as a short list: file:line - problem - fix.",
+        context=f"## Diff\n{diff}\n\n## Automated findings (already verified)\n{findings or 'none'}",
+        constraints=["Do not repeat the automated findings.", "If there are no real problems, reply exactly: no issues found."],
+    )
+
+
 def build_prompt(
     *,
     objective: str,

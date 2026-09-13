@@ -1,0 +1,215 @@
+"""The controlled loop end-to-end with a scripted model (no inference).
+
+The scripted model stands in for Ollama so these tests exercise real tools, real
+pytest runs, real checkpoints and real state - only the text a model would return is
+fixed. Real-model runs are in the backtest.
+"""
+import json
+from pathlib import Path
+
+import pytest
+
+from backend.agent import checkpoints as CP
+from backend.agent import governor as G
+from backend.agent import loop as L
+from backend.agent import state as S
+from backend.harness import router as R
+from backend.harness.task_classifier import classify_task
+
+FIX = """calc.py
+<<<<<<< SEARCH
+    return a - b
+=======
+    return a + b
+>>>>>>> REPLACE"""
+
+WRONG = """calc.py
+<<<<<<< SEARCH
+    return a - b
+=======
+    return a - b + 0
+>>>>>>> REPLACE"""
+
+
+class Script:
+    """Returns queued responses; records every call."""
+
+    def __init__(self, *responses, tier="small"):
+        self.responses = list(responses)
+        self.calls = []
+        self.tier = tier
+
+    def __call__(self, prompt, **kw):
+        self.calls.append({"prompt": prompt, **kw})
+        text = self.responses.pop(0) if self.responses else ""
+        tier = kw.get("tier", self.tier)
+        return type("R", (), {"text": text, "model": f"scripted-{tier}", "total_tokens": 50,
+                              "prompt_tokens": 40, "completion_tokens": 10, "meta": {"tier": tier}})()
+
+
+@pytest.fixture(autouse=True)
+def calm_governor():
+    g = G.Governor(sampler=lambda: (10.0, 1.0, 8.0), interval_s=0.05, persist=False)
+    g.tick()
+    G.set_governor(g)
+    yield g
+    G.set_governor(None)
+
+
+def _run(ws, request, llm, **opts):
+    st = L.create_task(ws, request, session_id="sess", options={"allow_edits": True, **opts})
+    return L.run_agent(st["id"], llm=llm)
+
+
+def test_fix_bug_full_loop(workspace):
+    llm = Script(FIX)
+    st = _run(workspace, "fix the failing test in tests/test_calc.py", llm)
+    assert st["status"] == S.COMPLETED, st["last_output"]
+    assert "return a + b" in Path(workspace, "calc.py").read_text(encoding="utf-8")
+    names = [s["name"] for s in st["plan"]]
+    assert names[:3] == ["reproduce", "locate", "gather_context"] and st["completed_steps"][-1] == "report"
+    assert len(llm.calls) == 1 and st["counters"]["llm_calls"] == 1
+    ev = st["evaluation"]
+    assert ev["actual"]["files_changed"] == ["calc.py"] and ev["predicted"]["files_changed"] == ["calc.py"]
+    assert ev["checks"]["tests_match"] is True and ev["match_score"] == 1.0
+    # tests were never offered as editable in a bug fix
+    assert "tests/test_calc.py" not in st["data"]["allowed_files"]
+    kinds = [e["kind"] for e in S.events(st["id"])]
+    assert {"understand", "plan", "checkpoint", "step_end", "complete"} <= set(kinds)
+    assert CP.get(st["last_checkpoint"])["files"][0]["path"] == "calc.py"
+
+
+def test_repair_loop_escalates_then_succeeds(workspace):
+    llm = Script(WRONG, FIX)
+    st = _run(workspace, "fix the failing test in tests/test_calc.py", llm)
+    assert st["status"] == S.COMPLETED, st["last_output"]
+    assert st["counters"]["repairs"] == 1 and len(llm.calls) == 2
+    assert llm.calls[1]["tier"] == "capable"  # escalated after the failed verification
+    assert "Verification failure" in llm.calls[1]["prompt"]
+    assert any(e["kind"] == "repair" for e in S.events(st["id"]))
+
+
+def test_same_failure_twice_blocks_instead_of_looping(workspace):
+    llm = Script(WRONG, WRONG, WRONG, WRONG)
+    st = _run(workspace, "fix the failing test in tests/test_calc.py", llm)
+    assert st["status"] in (S.BLOCKED, S.FAILED)
+    assert len(llm.calls) <= 3
+    # the failed attempt was rolled back: the file is exactly as before
+    assert "return a - b\n" in Path(workspace, "calc.py").read_text(encoding="utf-8")
+
+
+def test_inapplicable_edit_is_retried_then_fails_cleanly(workspace):
+    junk = "calc.py\n<<<<<<< SEARCH\nnot in the file\n=======\nx\n>>>>>>> REPLACE"
+    llm = Script(junk, "no blocks at all")
+    st = _run(workspace, "fix the failing test in tests/test_calc.py", llm)
+    assert st["status"] == S.FAILED and "propose_edit" in st["failed_steps"], st["last_output"]
+    assert Path(workspace, "calc.py").read_text(encoding="utf-8").count("return a - b") == 1
+
+
+def test_read_only_mode_never_edits(workspace):
+    llm = Script("`add` returns `a - b`; it should return `a + b`.")
+    st = L.create_task(workspace, "fix the failing test in tests/test_calc.py", options={"allow_edits": False})
+    st = L.run_agent(st["id"], llm=llm)
+    assert st["status"] == S.COMPLETED and "answer" in st["completed_steps"]
+    assert "return a - b" in Path(workspace, "calc.py").read_text(encoding="utf-8")
+    assert st["validation_results"][-1]["grounded_ratio"] == 1.0
+
+
+def test_deterministic_intent_uses_no_model(workspace):
+    llm = Script()
+    st = _run(workspace, "where is the function add defined", llm)
+    assert st["status"] == S.COMPLETED and not llm.calls
+    assert "calc.py" in st["last_output"] and st["evaluation"]["checks"]["no_llm_when_deterministic"] is True
+
+
+def test_rename_symbol_is_deterministic_and_verified(workspace):
+    Path(workspace, "calc.py").write_text(Path(workspace, "calc.py").read_text(encoding="utf-8")
+                                          .replace("return a - b", "return a + b"), encoding="utf-8")
+    llm = Script()
+    st = _run(workspace, "rename function mul to multiply", llm)
+    assert st["status"] == S.COMPLETED, st["last_output"]
+    assert not llm.calls
+    assert "def multiply(a, b):" in Path(workspace, "calc.py").read_text(encoding="utf-8")
+    assert "from calc import add, multiply" in Path(workspace, "tests/test_calc.py").read_text(encoding="utf-8")
+
+
+def test_delete_waits_for_approval(workspace):
+    st = L.create_task(workspace, "delete the file config.json", options={"allow_edits": True})
+    st = L.run_agent(st["id"], llm=Script())
+    assert st["status"] == S.AWAITING and st["data"]["pending_approval"]["action"] == "delete_file"
+    assert Path(workspace, "config.json").exists()
+    st["options"]["approved_actions"] = ["delete_file"]
+    S.save(st, status=S.QUEUED)
+    st = L.run_agent(st["id"], llm=Script())
+    assert st["status"] == S.COMPLETED and not Path(workspace, "config.json").exists()
+
+
+def test_cancel_and_iteration_limit(workspace):
+    import threading
+
+    ev = threading.Event()
+    ev.set()
+    st = L.create_task(workspace, "explain how the Accumulator class works", options={})
+    assert L.run_agent(st["id"], llm=Script("x"), cancel_event=ev)["status"] == S.CANCELLED
+    st = L.create_task(workspace, "explain how the Accumulator class works", options={"max_iterations": 1})
+    assert L.run_agent(st["id"], llm=Script("x"))["status"] == S.BLOCKED
+
+
+def test_governor_deferral_blocks_heavy_steps_until_deadline(workspace, calm_governor):
+    for _ in range(3):
+        calm_governor.tick((97.0, 1.0, 8.0))
+    st = L.create_task(workspace, "explain how the Accumulator class works", options={"timeout_s": 3})
+    st = L.run_agent(st["id"], llm=Script("x"))
+    assert st["status"] == S.BLOCKED and "deadline" in st["last_output"]
+    assert any(e["kind"] == "governor" for e in S.events(st["id"]))
+
+
+def test_model_unavailable_fails_safely(workspace):
+    def broken(prompt, **kw):
+        raise RuntimeError("no coding model is installed in Ollama")
+
+    st = L.create_task(workspace, "explain how the Accumulator class works", options={})
+    st = L.run_agent(st["id"], llm=broken)
+    assert st["status"] == S.FAILED and "no model could answer" in st["last_output"]
+
+
+def test_llm_cache_avoids_repeat_calls(workspace):
+    llm = Script("`Accumulator` keeps a running total using `add`.")
+    st1 = L.run_agent(L.create_task(workspace, "explain how the Accumulator class works")["id"], llm=llm)
+    st2 = L.run_agent(L.create_task(workspace, "explain how the Accumulator class works")["id"], llm=llm)
+    assert len(llm.calls) == 1 and st2["counters"]["cache_hits"] == 1 and st2["counters"]["llm_calls"] == 0
+    assert st1["last_output"] == st2["last_output"]
+
+
+def test_memory_replay_fixes_a_recurring_error_without_the_model(workspace):
+    st = _run(workspace, "fix the failing test in tests/test_calc.py", Script(FIX))
+    assert st["status"] == S.COMPLETED
+    Path(workspace, "calc.py").write_text(Path(workspace, "calc.py").read_text(encoding="utf-8")
+                                          .replace("return a + b", "return a - b"), encoding="utf-8")
+    llm = Script()
+    st2 = _run(workspace, "fix the failing test in tests/test_calc.py", llm)
+    assert st2["status"] == S.COMPLETED and not llm.calls
+    assert any(s["method"] == "memory" for s in st2["plan"])
+
+
+# ------------------------------------------------------------- harness integration
+
+def test_router_routes_workspace_requests_to_tools(workspace):
+    out = R.run_task("where is the function add defined", options={"workspace": workspace}, record=False)
+    assert out["task_type"] == "workspace" and out["llm_used"] is False
+    assert out["processor"] == "tool:search_symbols" and "calc.py" in out["answer"]
+
+
+def test_router_runs_the_agent_for_coding_requests(workspace):
+    out = R.run_task("fix the failing test in tests/test_calc.py",
+                     options={"workspace": workspace, "allow_edits": True, "llm": Script(FIX)}, record=False)
+    assert out["task_type"] == "coding" and out["processor"] == "coding_agent(loop)"
+    assert out["result"]["status"] == "completed" and out["llm_calls"] == 1
+    steps = [s["processor"] for s in out["steps"]]
+    assert steps == ["tool:fix_bug", "coding_agent(loop)"] or steps[-1] == "coding_agent(loop)"
+
+
+def test_existing_classifications_are_unchanged():
+    base = json.loads(Path(__file__).with_name("classifier_baseline.json").read_text(encoding="utf-8"))
+    changed = {t: (want, classify_task(t).result) for t, want in base.items() if classify_task(t).result != want}
+    assert not changed, changed
