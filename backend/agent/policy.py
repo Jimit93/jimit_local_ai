@@ -179,6 +179,20 @@ _SECRET_PATTERNS = [
 ]
 
 
+def redact_obj(obj, _depth: int = 0):
+    """Redact every string inside a JSON-like structure. Must run before serialisation:
+    once dumped, quotes are escaped and the value patterns no longer match."""
+    if _depth > 20:
+        return obj
+    if isinstance(obj, str):
+        return redact(obj)[0]
+    if isinstance(obj, dict):
+        return {k: redact_obj(v, _depth + 1) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [redact_obj(v, _depth + 1) for v in obj]
+    return obj
+
+
 def is_secret_file(path: str | Path) -> bool:
     name = Path(path).name.lower()
     if name in _ALLOWED_ENV_TEMPLATES:

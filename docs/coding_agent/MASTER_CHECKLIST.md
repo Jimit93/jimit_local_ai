@@ -17,20 +17,21 @@ with the reason; `[ ]` = not started.
 - [x] Existing models identified
 - [x] Missing functionality identified (capability matrix)
 - [x] Architecture designed
-- [ ] Resource governor designed → Phase 2
+- [x] Resource governor designed
 - [x] Routing designed
 
 ## Build
-- [ ] Tool system validated (Phase 1)
-- [ ] Safety policy + audit (Phase 1)
-- [ ] Resource governor implemented + measured (Phase 2)
-- [ ] NLP layer for code (BM25 ranking) (Phase 3)
-- [ ] ML layer (intent model; ranking only if measured to help) (Phases 3, 5)
-- [ ] Context system (Phase 3)
-- [ ] Memory (Phase 4)
-- [ ] Persistent state (Phase 4)
-- [ ] Checkpoint system (Phase 4)
-- [ ] Resume system (Phase 4)
+- [x] Tool system validated (Phase 1, `19a87f1`) — 23 workspace tools in the registry
+- [x] Safety policy + audit (Phase 1) — sandbox, allowlist, redaction, approvals
+- [x] Resource governor implemented + measured (Phase 2, `670b4a6`) — see reports/agent/cpu_*.json
+- [x] RAM reclaim (user request 2026-09-13) — tiered, protected processes never touched
+- [x] NLP layer for code (Phase 3, `89c4e4f`) — fused P@1 0.912 / MRR 0.949 (reports/agent/ranking_eval.json)
+- [~] ML layer — intent model pending (Phase 5); learned ranker not adopted: fused BM25 already MRR 0.949
+- [x] Context system (Phase 3) — symbol excerpts, budget, redaction
+- [x] Memory (Phase 4) — session/project/task/persistent
+- [x] Persistent state (Phase 4)
+- [x] Checkpoint system (Phases 1+4) — conflict-aware rollback
+- [x] Resume system (Phase 4) — unit-tested; real restart backtest pending (Phase 9)
 - [ ] LLM layer: code tiers (Phase 5)
 - [ ] Harness integration (Phase 5)
 - [ ] Coding agent loop (Phase 6)
@@ -65,7 +66,18 @@ with the reason; `[ ]` = not started.
 - [ ] Security audit completed
 - [ ] Final system audit completed
 
+## Measured facts that changed decisions
+- Machine on battery: max achievable system CPU ≈ 68%; protection validated at a lowered
+  cap (activation 0.0 s after first sample above cap, recovery 0.06 s). Re-run plugged in.
+- llama.cpp 10 threads = 22.5 tok/s @ 58.5% vs 16 threads = 22.1 tok/s @ 67.5% → default threads from cap.
+- Embeddings for code ranking not adopted (MiniLM load ≈ 20 s; BM25 fused MRR 0.949).
+
+## Open user requests
+- Latest coder models: qwen3-coder 30b (19 GB) does not fit 16.7 GB RAM; deepseek-coder-v2 16b
+  lite (8.9 GB) fits only after RAM reclaim; qwen2.5-coder 1.5b/3b/7b fit. **Download needs user OK.**
+
 ## State
-- Current phase: 1
-- Last checkpoint: phase-0 commit on `feature/coding-agent`
-- Next action: implement `backend/agent/policy.py` + `code_tools.py`
+- Current phase: 5 (intents + LLM code tiers + harness integration)
+- Last checkpoint: phase-4 commit on `feature/coding-agent`
+- Tests: 83 agent tests pass; full suite last run 209 passed / 2 skipped (after phase 1)
+- Next action: `backend/agent/intents.py`, code tiers in `llm/manager.py`, router `workspace`/`coding` chains

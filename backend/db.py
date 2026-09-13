@@ -152,6 +152,17 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
 
+-- Session memory: the conversation with the coding agent (requests + short results).
+CREATE TABLE IF NOT EXISTS agent_messages (
+    id         INTEGER PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    ts         REAL NOT NULL,
+    role       TEXT NOT NULL,     -- user|agent
+    text       TEXT NOT NULL,
+    task_id    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_session ON agent_messages(session_id, ts);
+
 -- Append-only timeline of what the agent did (drawn by the UI; no chain-of-thought).
 CREATE TABLE IF NOT EXISTS agent_events (
     id           INTEGER PRIMARY KEY,
