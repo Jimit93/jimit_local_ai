@@ -56,6 +56,18 @@ def test_over_indented_blocks_are_dedented_to_match(workspace):
     assert "\ndef div(a, b):\n    return a / b" in text and "\ndef mul(a, b):" in text
 
 
+def test_reindent_keeps_crlf_line_endings(workspace):
+    p = Path(workspace, "calc.py")
+    p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    before = p.read_bytes()
+    txt = ("calc.py\n<<<<<<< SEARCH\n    def mul(a, b):\n        return a * b\n=======\n"
+           "    def mul(a, b):\n        return a * b\n\n    def div(a, b):\n        return a / b\n>>>>>>> REPLACE")
+    assert E.apply_blocks(workspace, E.parse_blocks(txt), allow_new_files=True).ok
+    after = p.read_bytes()
+    assert b"\n" not in after.replace(b"\r\n", b"")  # no bare LF introduced
+    assert after.startswith(before.split(b"def mul")[0])  # untouched lines byte-identical
+
+
 def test_refusals(workspace):
     missing = "calc.py\n<<<<<<< SEARCH\nreturn a / b\n=======\nreturn 0\n>>>>>>> REPLACE"
     rep = E.apply_blocks(workspace, E.parse_blocks(missing))

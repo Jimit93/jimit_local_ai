@@ -81,6 +81,7 @@ def build_code_context(
     max_files: int = 4,
     include_repo_map: bool = True,
     pinned_files: list[str] | None = None,
+    lead_blocks: list[tuple[str, str]] | None = None,
 ) -> tuple[str, dict]:
     ws = str(policy.resolve_workspace(workspace))
     t0 = time.perf_counter()
@@ -104,7 +105,9 @@ def build_code_context(
             picked.append(e)
 
     tb = PI.traceback_locations(error_text, ws)
-    blocks: list[tuple[str, str]] = []
+    # Lead blocks (e.g. the exact function a follow-up refers to) come first: small models
+    # anchor their edit on the first code they read.
+    blocks: list[tuple[str, str]] = [(label, policy.redact(body)[0]) for label, body in (lead_blocks or [])]
     files_acct, redactions = [], 0
     if error_text.strip():
         err, n = policy.redact(error_text.strip()[-1800:])

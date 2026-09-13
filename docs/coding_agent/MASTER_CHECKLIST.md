@@ -73,7 +73,24 @@ with the reason; `[ ]` = not started.
 - llama.cpp 10 threads = 22.5 tok/s @ 58.5% vs 16 threads = 22.1 tok/s @ 67.5% → default threads from cap.
 - Embeddings for code ranking not adopted (MiniLM load ≈ 20 s; BM25 fused MRR 0.949).
 
-## Improvement candidates (designed, NOT implemented — need a baseline first)
+## Improvement decisions (Phase 10, evidence-based)
+
+- **I1 micro-iterations: NOT built.** Baseline evidence: after the Phase 9 edit fixes, the
+  single-cycle loop passes the multi-part feature case (4/4 hidden tests, 1 model call, 24 s).
+  Splitting would add ~30–60 s per extra model call on this CPU with no measured failure to fix.
+  Revisit only with a multi-part case that single-cycle measurably fails.
+- **I2 refine follow-ups: built and measured** on an identical case (`refine_followup`, hidden
+  tests, fresh DB per run, qwen2.5-coder:3b):
+  | variant | passes |
+  |---|---|
+  | refine off | 0/4 |
+  | refine on, first version | 1/4 (the model kept editing another function; verification refused it) |
+  | refine on + target function shown first + out-of-scope SEARCH rejected | **3/3**, 22–24 s |
+  Getting there exposed and fixed: the worker re-classified intake-created agent tasks (the
+  follow-up never ran); "it" resolved to a function whose diff was only line-ending churn; the
+  re-indent fallback converted CRLF lines to LF; removed functions escaped the unrelated-change check.
+
+## Improvement candidates (original design notes)
 
 Source: user-supplied "AI App Development Lifecycle & Rapid Iteration" notes (Describe →
 Generate → Test → Refine; many small iterations beat one big prompt).

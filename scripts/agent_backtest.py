@@ -17,8 +17,18 @@ ap.add_argument("--suites", default="")
 ap.add_argument("--cases", default="")
 ap.add_argument("--label", default="system_backtest")
 ap.add_argument("--db", default=os.path.join("data", "backtest", "agent_backtest.db"))
+ap.add_argument("--keep-db", action="store_true",
+                help="reuse the previous run's database (memory and LLM cache then carry over between runs)")
 args = ap.parse_args()
 os.makedirs(os.path.dirname(args.db), exist_ok=True)
+if not args.keep_db:
+    # Fixture paths repeat between runs, so a kept database leaks decisions, error patterns and
+    # cached model output from one run into the next (measured: it changed a pre-step's result).
+    for suffix in ("", "-wal", "-shm"):
+        try:
+            os.remove(args.db + suffix)
+        except FileNotFoundError:
+            pass
 os.environ["JLA_DB_PATH"] = os.path.abspath(args.db)  # before any backend import
 
 import json  # noqa: E402

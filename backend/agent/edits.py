@@ -101,14 +101,17 @@ def _reindent(replace: str, original: str, search: str) -> str:
 
     delta = indent(original) - indent(search)
     lines = replace.splitlines()
-    tail = "\n" if replace.endswith("\n") else ""
+    # Keep the file's line endings: joining with "\n" in a CRLF file rewrote untouched lines
+    # and made later diffs report unchanged functions as rewritten (measured).
+    nl = "\r\n" if "\r\n" in replace or "\r\n" in original else "\n"
+    tail = nl if replace.endswith("\n") else ""
     if delta > 0:
         pad = " " * delta
-        return "\n".join(pad + ln if ln.strip() else ln for ln in lines) + tail
+        return nl.join(pad + ln if ln.strip() else ln for ln in lines) + tail
     if delta < 0:
         cut = -delta
         if all(not ln.strip() or len(ln) - len(ln.lstrip()) >= cut for ln in lines):
-            return "\n".join(ln[cut:] if ln.strip() else ln.strip() for ln in lines) + tail
+            return nl.join(ln[cut:] if ln.strip() else ln.strip() for ln in lines) + tail
     return replace
 
 

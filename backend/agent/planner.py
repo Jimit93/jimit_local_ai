@@ -50,7 +50,7 @@ def plan_for(ir: IntentResult, *, allow_edits: bool, has_tests: bool) -> list[di
         S("apply_edit", "apply_edit"),
         S("verify_syntax", "verify_syntax"),
     ]
-    if i in REQUIREMENT_INTENTS:
+    if i in REQUIREMENT_INTENTS or ir.params.get("refine_targets"):
         steps.append(S("verify_requirements", "verify_requirements"))
     steps.append(S("verify_lint", "verify_lint"))
     if has_tests:

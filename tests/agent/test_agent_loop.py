@@ -399,6 +399,42 @@ def test_router_runs_the_agent_for_coding_requests(workspace):
     assert steps == ["tool:fix_bug", "coding_agent(loop)"] or steps[-1] == "coding_agent(loop)"
 
 
+def test_refine_must_change_the_referenced_function(workspace):
+    from backend.agent import memory as MEM
+
+    Path(workspace, "calc.py").write_text(Path(workspace, "calc.py").read_text(encoding="utf-8")
+                                          .replace("return a - b", "return a + b"), encoding="utf-8")
+    add = "calc.py\n<<<<<<< SEARCH\n=======\ndef sub(a, b):\n    return a - b\n>>>>>>> REPLACE"
+    st = L.run_agent(L.create_task(workspace, "add a function sub(a, b) to calc.py", session_id="rt",
+                                   options={"allow_edits": True})["id"], llm=Script(add))
+    assert st["status"] == S.COMPLETED, st["last_output"]
+    ref = MEM.refinement_of("rt", "now also make it return 0 when both are None", workspace)
+    assert ref["targets"] == ["sub"]
+    # Measured habit: the follow-up edits a different function. It must be undone and repaired.
+    wrong = "calc.py\n<<<<<<< SEARCH\n    return a * b\n=======\n    return (a or 0) * (b or 0)\n>>>>>>> REPLACE"
+    right = ("calc.py\n<<<<<<< SEARCH\ndef sub(a, b):\n    return a - b\n=======\ndef sub(a, b):\n"
+             "    if a is None and b is None:\n        return 0\n    return a - b\n>>>>>>> REPLACE")
+    llm = Script(wrong, right)
+    t = L.create_task(workspace, "now also make it return 0 when both are None", session_id="rt",
+                      options={"allow_edits": True, "refine_of": ref})
+    t = L.run_agent(t["id"], llm=llm)
+    assert t["status"] == S.COMPLETED, t["last_output"]
+    assert "`sub` from the previous request" in llm.calls[0]["prompt"] and len(llm.calls) == 2
+    text = Path(workspace, "calc.py").read_text(encoding="utf-8")
+    assert "return a * b" in text and "if a is None and b is None" in text
+
+
+def test_forced_category_is_not_reclassified(workspace):
+    # Found by the refine before/after run: the worker re-classified an intake-created agent task
+    # ("now also make it return False for empty strings" -> reasoning) and it never executed.
+    st = L.create_task(workspace, "explain how the Accumulator class works", options={})
+    out = R.run_task("now also make it return False for empty strings",
+                     options={"workspace": workspace, "task_id": st["id"], "llm": Script("`Accumulator` sums values."),
+                              "force_category": "coding"}, record=False)
+    assert out["task_type"] == "coding" and out["classifier"]["processor"] == "forced:coding"
+    assert S.load(st["id"])["status"] == S.COMPLETED
+
+
 def test_existing_classifications_are_unchanged():
     base = json.loads(Path(__file__).with_name("classifier_baseline.json").read_text(encoding="utf-8"))
     changed = {t: (want, classify_task(t).result) for t, want in base.items() if classify_task(t).result != want}

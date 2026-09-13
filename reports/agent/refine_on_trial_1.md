@@ -1,0 +1,27 @@
+# refine_on_trial_1
+
+Run at 1789299527 · 71.6 s · power plugged: False · small model qwen2.5-coder:3b
+
+**1/1 cases passed (100%)** · 1 LLM calls · 893 tokens
+
+| Suite | Passed | Pass rate | LLM calls | Tokens | Mean s |
+|---|---|---|---|---|---|
+| coding | 1/1 | 100% | 1 | 893 | 24.5 |
+
+## Predicted vs actual
+
+- status accuracy 1.0
+- LLM budget adherence 1.0
+- method accuracy (LLM used iff predicted) 1.0
+- files changed F1 (mean) 1.0
+
+## Resources
+
+- CPU avg 45.1% · peak 67.0% · samples above 70%: 0.0
+- minimum free RAM 2.01 GB
+
+## Cases
+
+| Case | Suite | Result | s | LLM | Detail |
+|---|---|---|---|---|---|
+| refine_followup | coding | PASS | 24.49 | 1 | hidden follow-up tests passed=3 failed=0; refine_of=828fac30ceb8 |

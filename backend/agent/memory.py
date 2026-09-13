@@ -98,6 +98,27 @@ _PRONOUN = re.compile(r"\b(?:it|that|this|them|those|the same)\b", re.I)
 _MODIFYING = {"fix_bug", "implement", "refactor", "write_tests", "create_file", "rename_symbol"}
 
 
+def _ast_changed_functions(task: dict) -> list[str]:
+    import base64
+
+    from backend.agent import checkpoints as CP
+    from backend.agent.loop import _top_level
+
+    out: list[str] = []
+    for cp_id in task.get("checkpoints") or []:
+        cp = CP.get(cp_id, with_content=True)
+        for f in (cp or {}).get("files", []):
+            if not f["path"].endswith(".py"):
+                continue
+            before = _top_level(base64.b64decode(f["content_b64"]).decode("utf-8", "replace"), f["path"]) if f.get("existed") else {}
+            try:
+                after = _top_level(policy.resolve_path(task["workspace"], f["path"]).read_text(encoding="utf-8"), f["path"])
+            except (OSError, policy.PolicyError):
+                continue
+            out += [n for n, (_, dump) in after.items() if n not in before or before[n][1] != dump]
+    return list(dict.fromkeys(out))
+
+
 def refinement_of(session_id: str | None, request: str, workspace: str, *, max_age_s: float = 1800) -> dict | None:
     """Is this request a refinement of the session's last code change? Deterministic.
 
@@ -119,7 +140,8 @@ def refinement_of(session_id: str | None, request: str, workspace: str, *, max_a
     import time as _t
 
     changed = prev.get("data", {}).get("files_changed") or []
-    if (prev["status"] not in (S.COMPLETED, S.FAILED) or policy._norm(prev["workspace"]) != policy._norm(workspace)
+    # Blocked/failed predecessors are refinable too: more guidance after a failure is a refinement.
+    if (prev["status"] not in (S.COMPLETED, S.FAILED, S.BLOCKED) or policy._norm(prev["workspace"]) != policy._norm(workspace)
             or _t.time() - prev.get("updated_at", 0) > max_age_s or not (changed or prev.get("intent") in _MODIFYING)):
         return None
     ir = classify_intent(request)
@@ -131,8 +153,17 @@ def refinement_of(session_id: str | None, request: str, workspace: str, *, max_a
     if not (_REFINE_START.search(request) or (_PRONOUN.search(request) and len(request) < 160)):
         return None
     files = list(dict.fromkeys(changed + [f for f in prev.get("active_files", []) if f not in changed]))[:4]
+    diff = prev.get("data", {}).get("last_diff") or ""
+    # What "it" refers to: the functions the previous request named; only when it named none,
+    # the functions its change added or altered - by AST, never by diff text (line-ending
+    # churn once made an untouched function look rewritten and become a false target).
+    prev_params = (prev.get("data", {}).get("intent") or {}).get("params") or {}
+    targets = [r["name"] for r in prev_params.get("required_calls") or []]
+    if not targets:
+        targets = _ast_changed_functions(prev)
     return {"task_id": prev["id"], "intent": prev.get("intent"), "request": prev["task"], "files": files,
-            "diff": (prev.get("data", {}).get("last_diff") or "")[:1500], "status": prev["status"]}
+            "diff": diff[:1500], "status": prev["status"], "targets": list(dict.fromkeys(targets))[:6],
+            "required_calls": prev_params.get("required_calls") or []}
 
 
 # ----------------------------------------------------------------- project

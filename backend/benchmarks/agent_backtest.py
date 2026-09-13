@@ -161,6 +161,21 @@ HIDDEN_TESTS = {
         def test_truncate_short():
             assert truncate("abc", 5) == "abc"
         ''',
+    "palindrome_empty": '''\
+        from utils.strings import is_palindrome
+
+
+        def test_empty_is_not_a_palindrome():
+            assert is_palindrome("") is False
+
+
+        def test_only_spaces_is_not_a_palindrome():
+            assert is_palindrome("   ") is False
+
+
+        def test_still_works():
+            assert is_palindrome("Racecar") and not is_palindrome("python")
+        ''',
 }
 
 
@@ -250,6 +265,7 @@ class Case:
     predicted: dict = field(default_factory=dict)
     timeout_s: float = 120.0
     after: Callable[[dict, Path], dict] | None = None  # extra actions (approve, rollback) before checking
+    pre_request: str | None = None  # run first in the same session (for follow-up cases)
 
 
 def _answer(st: dict) -> str:
@@ -334,6 +350,11 @@ def build_cases() -> list[Case]:
           "a e i o u case-insensitively, and truncate(text, n) cuts text to n characters and appends '...' only when it was longer",
           lambda st, ws, x: _parts_check(ws), timeout_s=1200,
           predicted={"status": "completed", "llm_calls_max": 3, "method": "llm", "files_changed": ["utils/strings.py"]}),
+        C("refine_followup", "coding", "now also make it return False for empty strings",
+          lambda st, ws, x: ((h := hidden_test(ws, "palindrome_empty"))["exit"] == 0 and run_pytest(ws)["exit"] == 0,
+                             f"hidden follow-up tests passed={h['passed']} failed={h['failed']}; refine_of={x.get('refine_of')}"),
+          pre_request="add a function is_palindrome(text) to utils/strings.py that ignores case and spaces",
+          timeout_s=900, predicted={"status": "completed", "llm_calls_max": 3, "method": "llm", "files_changed": ["utils/strings.py"]}),
         C("explain_discount", "coding", "explain how the apply_discount function works",
           lambda st, ws, x: ("apply_discount" in _answer(st) and _complete(_answer(st))
                              and (st["validation_results"] or [{}])[-1].get("grounded_ratio", 0) >= 0.5,
@@ -475,12 +496,18 @@ def run_backtest(*, suites: list[str] | None = None, case_ids: list[str] | None 
         if case.setup:
             case.setup(ws)
         truth = {"truth_tests": run_pytest(ws)} if case.id == "det_run_tests_fail" else {}
+        pre = None
+        if case.pre_request:
+            pre = _wait(submit_request(case.pre_request, workspace=str(ws), session_id=f"bt_{case.id}",
+                                       options=case.options)["task_id"], case.timeout_s)
+            truth["pre_status"] = pre["status"]
         before = snapshot(ws)
         usage0 = dict(LLM.USAGE)
         t0 = time.time()
         err = None
         try:
             sub = submit_request(case.request, workspace=str(ws), session_id=f"bt_{case.id}", options=case.options)
+            truth["refine_of"] = sub.get("refine_of")
             st = _wait(sub["task_id"], case.timeout_s)
             extra = case.after(st, ws) if case.after else {}
             st = S.load(sub["task_id"])

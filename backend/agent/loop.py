@@ -99,6 +99,12 @@ def create_task(workspace: str, request: str, *, session_id: str | None = None, 
             inherited = refine.get("intent") if refine.get("intent") in MEM._MODIFYING else "implement"
             ir.intent, ir.deterministic, ir.stage = inherited, False, "refine"
         ir.params["files"] = list(dict.fromkeys(refine.get("files", []) + ir.params.get("files", [])))
+        if refine.get("targets") and not ir.params.get("symbols"):
+            ir.params["refine_targets"] = refine["targets"]
+            # The previous request's functions must still exist after the follow-up.
+            known = {r["name"] for r in ir.params.get("required_calls") or []}
+            ir.params["required_calls"] = (ir.params.get("required_calls") or []) + [
+                r for r in refine.get("required_calls") or [] if r["name"] not in known]
         ir.complexity = {**ir.complexity, "level": ir.complexity.get("level", "low")}
     allow_edits = bool(opts.get("allow_edits", False))
     has_tests = C.detect_test_runner(workspace) is not None
@@ -426,6 +432,27 @@ def _task_text(ctx: Ctx) -> str:
     return f"{ctx.st['task']}\n\n(This refines the previous request in this session: \"{refine.get('request', '')[:300]}\")"
 
 
+def _target_sources(ctx: Ctx) -> list[tuple[str, str, str]]:
+    """(name, file, exact current source) for each refine target found at module level."""
+    import ast
+
+    out = []
+    targets = ctx.ir.params.get("refine_targets") or []
+    for rel in (ctx.st["options"].get("refine_of") or {}).get("files", []):
+        if not rel.endswith(".py") or not targets:
+            continue
+        try:
+            text = C.policy.resolve_path(ctx.ws, rel).read_text(encoding="utf-8")
+            tree = ast.parse(text)
+        except (OSError, SyntaxError, C.policy.PolicyError):
+            continue
+        lines = text.splitlines()
+        for n in tree.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.name in targets:
+                out.append((n.name, rel, "\n".join(lines[n.lineno - 1 - len(n.decorator_list):n.end_lineno])))
+    return out
+
+
 def _is_ws_file(ws: str, rel: str) -> bool:
     try:
         return C.policy.resolve_path(ws, rel).is_file()
@@ -605,11 +632,16 @@ def h_context(ctx: Ctx) -> Outcome:
     items = MEM.memory_items_for(ctx.ws, ctx.st["task"])
     history = [d["text"] for d in ctx.st["decisions"][-5:] if isinstance(d, dict) and d.get("text")]
     refine = ctx.st["options"].get("refine_of")
+    lead = []
     if refine:
         history = [f"Previous request in this session: {refine.get('request', '')[:300]}",
                    f"Change already made for it:\n{refine.get('diff') or '(no diff recorded)'}"] + history
+        for name, rel, src in _target_sources(ctx):
+            lead.append((f"The function to change: `{name}` in {rel} (copy SEARCH text only from here)", src))
+        ctx.data["refine_target_sources"] = [{"name": n, "path": r} for n, r, _ in _target_sources(ctx)]
     text, acct = build_code_context(ctx.ws, _task_text(ctx), error_text=_error_text(ctx), memory_items=items,
-                                    history=history, scale=scale, pinned_files=ctx.data.get("allowed_files", [])[:2])
+                                    history=history, scale=scale, pinned_files=ctx.data.get("allowed_files", [])[:2],
+                                    lead_blocks=lead)
     ctx.data["context"] = text
     ctx.data["context_acct"] = {k: acct[k] for k in ("context_chars", "tokens_est", "budget_chars", "files",
                                                       "blocks_included", "blocks_dropped", "redactions",
@@ -683,7 +715,11 @@ def h_propose_edit(ctx: Ctx) -> Outcome:
     failure = "\n".join(x for x in (ctx.data.get("last_failure", ""), feedback) if x)
     extra = []
     required = ctx.ir.params.get("required_calls") or []
-    if required and ctx.ir.intent in ("implement", "create_file", "refactor"):
+    targets = ctx.ir.params.get("refine_targets") or []
+    if targets:
+        extra.append(f"'it' in the request means {', '.join('`' + t + '`' for t in targets)} from the previous request: "
+                     "change that code and leave every other function unchanged.")
+    elif required and ctx.ir.intent in ("implement", "create_file", "refactor"):
         extra.append("The request asks for these functions: " + ", ".join(
             f"{r['name']}({r['arity']} parameter{'s' if r['arity'] != 1 else ''})" for r in required)
             + ". Add each one; do not modify existing functions the request does not mention.")
@@ -697,6 +733,16 @@ def h_propose_edit(ctx: Ctx) -> Outcome:
     llm_calls = 0 if method == "cache" else 1
     blocks = E.parse_blocks(r.text)
     dry = E.apply_blocks(ctx.ws, blocks, allowed_files=allowed or None, allow_new_files=allow_new, dry_run=True)
+    sources = _target_sources(ctx) if ctx.ir.params.get("refine_targets") else []
+    if dry.ok and sources:
+        # A refinement edits the function "it" refers to; a SEARCH taken from elsewhere is the
+        # measured failure (the model kept editing `slugify`). Reject before applying.
+        norm = lambda s: re.sub(r"\s+", " ", s).strip()  # noqa: E731
+        outside = [b for b in blocks if b.search.strip() and not any(norm(b.search) in norm(src) for _, _, src in sources)]
+        if outside:
+            dry.ok = False
+            names = ", ".join(f"`{n}`" for n, _, _ in sources)
+            dry.errors.append(f"the SEARCH text is not from {names}; this follow-up must change {names} only")
     ctx.data["proposal"] = {"blocks": [b.to_dict() for b in blocks], "model": r.model, "diff": dry.diff,
                             "raw": redact(r.text[:4000])[0]}
     attempts = ctx.data.setdefault("proposal_attempts", [])
@@ -826,10 +872,14 @@ def _unrelated_modifications(ctx: Ctx, requested: set[str]) -> list[str]:
         except (OSError, C.policy.PolicyError):
             continue
         for name, (arity, dump) in before.items():
-            # Classes change legitimately when a requested method is added to them.
-            if arity < 0 or name in requested or name not in after:
+            if name in requested:
                 continue
-            if after[name][1] != dump:
+            if name not in after:
+                # Measured: an edit turned `def slugify` into `def is_palindrome`.
+                out.append(f"`{name}` was removed from {f['path']} but the request did not ask to remove it")
+                continue
+            # Classes change legitimately when a requested method is added to them.
+            if arity >= 0 and after[name][1] != dump:
                 out.append(f"`{name}` was modified in {f['path']} but the request did not ask to change it")
     return out
 
@@ -925,12 +975,35 @@ def _normalize_implementation(ctx: Ctx, required: set[str]) -> list[str]:
     return notes
 
 
+def _any_target_changed(ctx: Ctx, targets: set[str]) -> bool:
+    import base64
+
+    cp_id = next((s.get("checkpoint_id") for s in ctx.st["plan"] if s["kind"] == "apply_edit" and s.get("checkpoint_id")), None)
+    cp = CP.get(cp_id, with_content=True) if cp_id else None
+    for f in (cp or {}).get("files", []):
+        if not f["path"].endswith(".py") or not f.get("existed"):
+            continue
+        before = _top_level(base64.b64decode(f["content_b64"]).decode("utf-8", "replace"), f["path"])
+        try:
+            after = _top_level(C.policy.resolve_path(ctx.ws, f["path"]).read_text(encoding="utf-8"), f["path"])
+        except (OSError, C.policy.PolicyError):
+            continue
+        if any(t in after and (t not in before or before[t][1] != after[t][1]) for t in targets):
+            return True
+    return False
+
+
 def h_verify_requirements(ctx: Ctx) -> Outcome:
     """What the request asked to exist must exist - the existing tests cannot see new code."""
     changed = ctx.data.get("files_changed", [])
     required = ctx.ir.params.get("required_calls") or []
+    targets = ctx.ir.params.get("refine_targets") or []
     problems: list[str] = []
-    notes = _normalize_implementation(ctx, {r["name"] for r in required}) if required and ctx.ir.intent in ("implement", "create_file") else []
+    wanted = {r["name"] for r in required} | set(targets)
+    notes = _normalize_implementation(ctx, wanted) if wanted and ctx.ir.intent in ("implement", "create_file", "fix_bug") else []
+    if targets and not _any_target_changed(ctx, set(targets)):
+        problems.append(f"the follow-up must change {', '.join('`' + t + '`' for t in targets)} "
+                        "(the code from the previous request), but it is unchanged")
     if ctx.ir.intent == "write_tests":
         new_tests = [n for f in changed if _is_test_path(f) for n in _defined_functions(ctx.ws, f) if n.startswith("test")]
         if not new_tests:
@@ -946,7 +1019,9 @@ def h_verify_requirements(ctx: Ctx) -> Outcome:
             elif defined[name] >= 0 and arity and defined[name] != arity:
                 problems.append(f"`{name}` takes {defined[name]} parameter(s); the request specifies {arity}")
         if ctx.ir.intent in ("implement", "create_file"):
-            problems += _unrelated_modifications(ctx, {r["name"] for r in required})
+            problems += _unrelated_modifications(ctx, wanted)
+    elif targets:
+        problems += _unrelated_modifications(ctx, wanted)
     ok = not problems
     ctx.st["validation_results"].append({"check": "requirements", "ok": ok, "required": required,
                                          "problems": problems, "ts": time.time()})

@@ -1,0 +1,360 @@
+{
+  "label": "refine_on_trial_1",
+  "ts": 1789299527.0067174,
+  "duration_s": 71.6,
+  "power_plugged": false,
+  "models": {
+    "small": {
+      "tier": "small",
+      "name": "qwen2.5-coder:3b",
+      "size_gb": 1.93,
+      "preferred": true
+    },
+    "capable": {
+      "tier": "capable",
+      "name": "deepseek-coder-v2:16b",
+      "size_gb": 8.91,
+      "preferred": true
+    }
+  },
+  "totals": {
+    "cases": 1,
+    "passed": 1,
+    "pass_rate": 1.0,
+    "llm_calls": 1,
+    "tokens": 893
+  },
+  "predicted_vs_actual": {
+    "status_accuracy": 1.0,
+    "llm_budget_adherence": 1.0,
+    "method_accuracy": 1.0,
+    "files_f1_mean": 1.0
+  },
+  "resources": {
+    "samples": 69,
+    "cpu_avg": 45.1,
+    "cpu_peak": 67.0,
+    "cpu_above_70_fraction": 0.0,
+    "ram_min_gb": 2.01,
+    "protection_events": [],
+    "transitions": [
+      {
+        "ts": 1789299529.1932857,
+        "from": "NORMAL",
+        "to": "CAUTION",
+        "cpu_avg": 29.1,
+        "cpu_raw": 65.3,
+        "ram_avail_gb": 2.69
+      },
+      {
+        "ts": 1789299539.7060866,
+        "from": "CAUTION",
+        "to": "NORMAL",
+        "cpu_avg": 13.6,
+        "cpu_raw": 10.5,
+        "ram_avail_gb": 5.23
+      },
+      {
+        "ts": 1789299545.9146845,
+        "from": "NORMAL",
+        "to": "CAUTION",
+        "cpu_avg": 42.6,
+        "cpu_raw": 61.5,
+        "ram_avail_gb": 2.81
+      },
+      {
+        "ts": 1789299567.6502297,
+        "from": "CAUTION",
+        "to": "NORMAL",
+        "cpu_avg": 15.0,
+        "cpu_raw": 16.6,
+        "ram_avail_gb": 2.81
+      },
+      {
+        "ts": 1789299575.095908,
+        "from": "NORMAL",
+        "to": "CAUTION",
+        "cpu_avg": 37.7,
+        "cpu_raw": 65.4,
+        "ram_avail_gb": 2.11
+      },
+      {
+        "ts": 1789299591.7630239,
+        "from": "CAUTION",
+        "to": "NORMAL",
+        "cpu_avg": 18.0,
+        "cpu_raw": 16.4,
+        "ram_avail_gb": 2.24
+      }
+    ],
+    "series": [
+      [
+        0.0,
+        0.0,
+        2.78
+      ],
+      [
+        2.2,
+        65.3,
+        2.69
+      ],
+      [
+        4.3,
+        66.6,
+        2.73
+      ],
+      [
+        6.4,
+        60.9,
+        2.74
+      ],
+      [
+        8.4,
+        59.9,
+        2.73
+      ],
+      [
+        10.5,
+        17.3,
+        5.2
+      ],
+      [
+        12.7,
+        10.5,
+        5.23
+      ],
+      [
+        14.8,
+        22.1,
+        5.2
+      ],
+      [
+        16.8,
+        13.1,
+        3.25
+      ],
+      [
+        18.9,
+        61.5,
+        2.81
+      ],
+      [
+        21.0,
+        61.8,
+        2.82
+      ],
+      [
+        23.1,
+        62.4,
+        2.81
+      ],
+      [
+        25.2,
+        65.5,
+        2.8
+      ],
+      [
+        27.3,
+        60.5,
+        2.79
+      ],
+      [
+        29.3,
+        60.7,
+        2.79
+      ],
+      [
+        31.4,
+        61.3,
+        2.79
+      ],
+      [
+        33.4,
+        60.1,
+        2.8
+      ],
+      [
+        35.5,
+        64.4,
+        2.81
+      ],
+      [
+        37.5,
+        44.5,
+        2.81
+      ],
+      [
+        39.6,
+        13.7,
+        2.77
+      ],
+      [
+        41.7,
+        23.7,
+        2.77
+      ],
+      [
+        43.8,
+        17.3,
+        2.64
+      ],
+      [
+        45.8,
+        18.8,
+        2.46
+      ],
+      [
+        48.1,
+        65.4,
+        2.11
+      ],
+      [
+        50.2,
+        66.9,
+        2.12
+      ],
+      [
+        52.4,
+        63.6,
+        2.08
+      ],
+      [
+        54.4,
+        61.4,
+        2.06
+      ],
+      [
+        56.5,
+        64.4,
+        2.13
+      ],
+      [
+        58.6,
+        64.1,
+        2.11
+      ],
+      [
+        60.6,
+        59.5,
+        2.12
+      ],
+      [
+        62.7,
+        22.1,
+        2.16
+      ],
+      [
+        64.8,
+        16.4,
+        2.24
+      ],
+      [
+        66.8,
+        14.2,
+        2.24
+      ],
+      [
+        68.9,
+        40.9,
+        2.01
+      ],
+      [
+        70.9,
+        12.5,
+        2.04
+      ]
+    ]
+  },
+  "suites": {
+    "coding": {
+      "total": 1,
+      "passed": 1,
+      "llm_calls": 1,
+      "tokens": 893,
+      "duration_s": 24.49,
+      "pass_rate": 1.0,
+      "mean_duration_s": 24.5
+    }
+  },
+  "cases": [
+    {
+      "id": "refine_followup",
+      "suite": "coding",
+      "request": "now also make it return False for empty strings",
+      "passed": true,
+      "detail": "hidden follow-up tests passed=3 failed=0; refine_of=828fac30ceb8",
+      "error": null,
+      "predicted": {
+        "status": "completed",
+        "llm_calls_max": 3,
+        "method": "llm",
+        "files_changed": [
+          "utils/strings.py"
+        ]
+      },
+      "actual": {
+        "status": "completed",
+        "llm_calls": 1,
+        "tokens": 893,
+        "files_changed": [
+          "utils/strings.py"
+        ],
+        "methods": [
+          "deterministic",
+          "llm_small",
+          "nlp"
+        ],
+        "duration_s": 24.49,
+        "repairs": 0,
+        "models": [],
+        "llm_delta_calls": 1
+      },
+      "predicted_vs_actual": {
+        "status_match": true,
+        "llm_budget_respected": true,
+        "method_match": true,
+        "files_precision": 1.0,
+        "files_recall": 1.0,
+        "files_f1": 1.0
+      },
+      "task_id": "fc2f0a30f4e7",
+      "final_output": "Changed utils/strings.py. Tests: 7 passed in 0.08s. Checkpoint 88ce1cab940b restores the previous version.\n\n--- a/utils/strings.py\n+++ b/utils/strings.py\n@@ -11,3 +11,5 @@\n     \"\"\"Check if a string is a palindrome, ignoring case and spaces.\"\"\"\r\n     text = re.sub(r\"[^a-zA-Z0-9]\", \"\", text).lower()\r\n+    if not text:\r\n+        return False\r\n     return text == text[::-1]\r\n",
+      "evaluation": {
+        "predicted": {
+          "files_changed": [
+            "utils/strings.py"
+          ],
+          "tests_pass": true,
+          "llm_calls_max": 3,
+          "method": "llm"
+        },
+        "actual": {
+          "files_changed": [
+            "utils/strings.py"
+          ],
+          "tests_pass": true,
+          "llm_calls": 1,
+          "tokens": 893,
+          "tool_calls": 6,
+          "repairs": 0,
+          "iterations": 9,
+          "cache_hits": 0,
+          "duration_s": 18.76,
+          "context_tokens_est": 510,
+          "cpu_avg": 54.1,
+          "cpu_peak": 67.0,
+          "ram_min_gb": 2.05,
+          "samples": 18
+        },
+        "checks": {
+          "files_f1": 1.0,
+          "tests_match": true,
+          "llm_budget_respected": true,
+          "no_llm_when_deterministic": null
+        },
+        "match_score": 1.0,
+        "status": "completed"
+      }
+    }
+  ]
+}

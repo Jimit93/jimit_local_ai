@@ -139,7 +139,7 @@ secrets redacted. The accounting ("N chars of the repository not sent") is shown
 
 | Layer | Store | Content |
 |---|---|---|
-| Session | `agent_messages` | requests + results; deterministic follow-ups ("undo that", "again", "continue") |
+| Session | `agent_messages` | requests + results; deterministic follow-ups ("undo that", "again", "continue"); refine follow-ups ("now also…") continue the previous change: its files, diff and target functions (`memory.refinement_of`, `JLA_AGENT_REFINE`) |
 | Project | `agent_memory` kind `project` | languages, manifests, test command, conventions (from CLAUDE.md), most-connected files |
 | Task | `agent_tasks.state_json` | plan, steps, active files, decisions, validation results, next action, owner process |
 | Persistent | `agent_memory` kinds `decision`, `error_pattern` | decisions; error signatures with the verified fix (replayable) |

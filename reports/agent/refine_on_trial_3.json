@@ -1,0 +1,345 @@
+{
+  "label": "refine_on_trial_3",
+  "ts": 1789299668.4681072,
+  "duration_s": 65.2,
+  "power_plugged": false,
+  "models": {
+    "small": {
+      "tier": "small",
+      "name": "qwen2.5-coder:3b",
+      "size_gb": 1.93,
+      "preferred": true
+    },
+    "capable": {
+      "tier": "capable",
+      "name": "deepseek-coder-v2:16b",
+      "size_gb": 8.91,
+      "preferred": true
+    }
+  },
+  "totals": {
+    "cases": 1,
+    "passed": 1,
+    "pass_rate": 1.0,
+    "llm_calls": 1,
+    "tokens": 893
+  },
+  "predicted_vs_actual": {
+    "status_accuracy": 1.0,
+    "llm_budget_adherence": 1.0,
+    "method_accuracy": 1.0,
+    "files_f1_mean": 1.0
+  },
+  "resources": {
+    "samples": 64,
+    "cpu_avg": 42.4,
+    "cpu_peak": 68.3,
+    "cpu_above_70_fraction": 0.0,
+    "ram_min_gb": 3.0,
+    "protection_events": [],
+    "transitions": [
+      {
+        "ts": 1789299670.6196887,
+        "from": "NORMAL",
+        "to": "CAUTION",
+        "cpu_avg": 30.3,
+        "cpu_raw": 64.3,
+        "ram_avail_gb": 3.01
+      },
+      {
+        "ts": 1789299677.896651,
+        "from": "CAUTION",
+        "to": "NORMAL",
+        "cpu_avg": 18.4,
+        "cpu_raw": 9.2,
+        "ram_avail_gb": 5.52
+      },
+      {
+        "ts": 1789299684.1806924,
+        "from": "NORMAL",
+        "to": "CAUTION",
+        "cpu_avg": 37.1,
+        "cpu_raw": 61.4,
+        "ram_avail_gb": 3.13
+      },
+      {
+        "ts": 1789299705.7795749,
+        "from": "CAUTION",
+        "to": "NORMAL",
+        "cpu_avg": 16.8,
+        "cpu_raw": 9.4,
+        "ram_avail_gb": 5.05
+      },
+      {
+        "ts": 1789299711.929488,
+        "from": "NORMAL",
+        "to": "CAUTION",
+        "cpu_avg": 30.0,
+        "cpu_raw": 60.9,
+        "ram_avail_gb": 4.94
+      },
+      {
+        "ts": 1789299728.404284,
+        "from": "CAUTION",
+        "to": "NORMAL",
+        "cpu_avg": 10.2,
+        "cpu_raw": 9.7,
+        "ram_avail_gb": 4.94
+      }
+    ],
+    "series": [
+      [
+        0.0,
+        0.0,
+        3.02
+      ],
+      [
+        2.2,
+        64.3,
+        3.01
+      ],
+      [
+        4.2,
+        59.9,
+        3.06
+      ],
+      [
+        6.3,
+        58.8,
+        3.06
+      ],
+      [
+        8.4,
+        10.0,
+        5.52
+      ],
+      [
+        10.5,
+        16.7,
+        5.52
+      ],
+      [
+        12.6,
+        18.5,
+        4.78
+      ],
+      [
+        14.7,
+        37.1,
+        3.17
+      ],
+      [
+        16.7,
+        59.4,
+        3.12
+      ],
+      [
+        18.8,
+        59.4,
+        3.14
+      ],
+      [
+        20.9,
+        61.4,
+        3.14
+      ],
+      [
+        22.9,
+        63.8,
+        3.13
+      ],
+      [
+        25.0,
+        61.4,
+        3.13
+      ],
+      [
+        27.0,
+        61.9,
+        3.24
+      ],
+      [
+        29.1,
+        60.9,
+        3.22
+      ],
+      [
+        31.2,
+        62.7,
+        5.07
+      ],
+      [
+        33.2,
+        65.4,
+        5.06
+      ],
+      [
+        35.2,
+        31.6,
+        5.06
+      ],
+      [
+        37.3,
+        9.4,
+        5.05
+      ],
+      [
+        39.4,
+        10.3,
+        5.07
+      ],
+      [
+        41.4,
+        13.1,
+        5.01
+      ],
+      [
+        43.5,
+        60.9,
+        4.94
+      ],
+      [
+        45.5,
+        58.6,
+        4.95
+      ],
+      [
+        47.6,
+        58.9,
+        4.95
+      ],
+      [
+        49.7,
+        59.6,
+        4.95
+      ],
+      [
+        51.7,
+        61.5,
+        4.95
+      ],
+      [
+        53.8,
+        64.3,
+        4.96
+      ],
+      [
+        55.8,
+        58.1,
+        4.96
+      ],
+      [
+        57.9,
+        11.4,
+        4.9
+      ],
+      [
+        59.9,
+        9.7,
+        4.94
+      ],
+      [
+        62.0,
+        12.4,
+        4.88
+      ],
+      [
+        64.1,
+        17.1,
+        4.9
+      ]
+    ]
+  },
+  "suites": {
+    "coding": {
+      "total": 1,
+      "passed": 1,
+      "llm_calls": 1,
+      "tokens": 893,
+      "duration_s": 21.85,
+      "pass_rate": 1.0,
+      "mean_duration_s": 21.9
+    }
+  },
+  "cases": [
+    {
+      "id": "refine_followup",
+      "suite": "coding",
+      "request": "now also make it return False for empty strings",
+      "passed": true,
+      "detail": "hidden follow-up tests passed=3 failed=0; refine_of=5bba6c3adcdc",
+      "error": null,
+      "predicted": {
+        "status": "completed",
+        "llm_calls_max": 3,
+        "method": "llm",
+        "files_changed": [
+          "utils/strings.py"
+        ]
+      },
+      "actual": {
+        "status": "completed",
+        "llm_calls": 1,
+        "tokens": 893,
+        "files_changed": [
+          "utils/strings.py"
+        ],
+        "methods": [
+          "deterministic",
+          "llm_small",
+          "nlp"
+        ],
+        "duration_s": 21.85,
+        "repairs": 0,
+        "models": [],
+        "llm_delta_calls": 1
+      },
+      "predicted_vs_actual": {
+        "status_match": true,
+        "llm_budget_respected": true,
+        "method_match": true,
+        "files_precision": 1.0,
+        "files_recall": 1.0,
+        "files_f1": 1.0
+      },
+      "task_id": "82a62766c413",
+      "final_output": "Changed utils/strings.py. Tests: 7 passed in 0.05s. Checkpoint 37e3f4b65d3a restores the previous version.\n\n--- a/utils/strings.py\n+++ b/utils/strings.py\n@@ -11,3 +11,5 @@\n     \"\"\"Check if a string is a palindrome, ignoring case and spaces.\"\"\"\r\n     text = re.sub(r\"[^a-zA-Z0-9]\", \"\", text).lower()\r\n+    if not text:\r\n+        return False\r\n     return text == text[::-1]\r\n",
+      "evaluation": {
+        "predicted": {
+          "files_changed": [
+            "utils/strings.py"
+          ],
+          "tests_pass": true,
+          "llm_calls_max": 3,
+          "method": "llm"
+        },
+        "actual": {
+          "files_changed": [
+            "utils/strings.py"
+          ],
+          "tests_pass": true,
+          "llm_calls": 1,
+          "tokens": 893,
+          "tool_calls": 6,
+          "repairs": 0,
+          "iterations": 9,
+          "cache_hits": 0,
+          "duration_s": 17.35,
+          "context_tokens_est": 510,
+          "cpu_avg": 51.5,
+          "cpu_peak": 64.6,
+          "ram_min_gb": 4.89,
+          "samples": 17
+        },
+        "checks": {
+          "files_f1": 1.0,
+          "tests_match": true,
+          "llm_budget_respected": true,
+          "no_llm_when_deterministic": null
+        },
+        "match_score": 1.0,
+        "status": "completed"
+      }
+    }
+  ]
+}

@@ -168,7 +168,8 @@ class AgentWorker:
             if st["plan"] and st["plan"][0]["kind"] == "harness":
                 self._run_harness_task(st, opts)
             else:
-                run_task(st["task"], options=opts)
+                # Intake already made this an agent task; the router must not re-classify the text.
+                run_task(st["task"], options={**opts, "force_category": "coding"})
                 # A tracked task whose category escaped the coding chains is finalised here.
                 st = S.load(task_id)
                 if st["status"] in (S.QUEUED, S.RUNNING):

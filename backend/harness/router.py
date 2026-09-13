@@ -451,8 +451,13 @@ def run_task(
         steps.append({"processor": res.processor, "confidence": res.confidence,
                       "accepted": True, "latency_ms": round(res.latency_ms, 2)})
     else:
-        cls = classify_task(task)
-        category, cls_conf, cls_proc = cls.result, cls.confidence, cls.processor
+        if opts.get("force_category") in CHAINS:
+            # The caller already decided (an agent task created by intake, or a refine follow-up
+            # whose wording alone classifies as general reasoning); re-classifying would override it.
+            category, cls_conf, cls_proc = opts["force_category"], 1.0, f"forced:{opts['force_category']}"
+        else:
+            cls = classify_task(task)
+            category, cls_conf, cls_proc = cls.result, cls.confidence, cls.processor
         chain = CHAINS.get(category, [p_llm])
         res = None
         for proc in chain:
