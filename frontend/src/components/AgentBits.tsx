@@ -26,7 +26,8 @@ const STEP_LABEL: Record<string, string> = {
   tool: "Run tool", harness: "Route through harness", run_tests: "Reproduce with tests", locate: "Find relevant files",
   context: "Gather minimal context", answer: "Answer", validate_answer: "Check answer against the code",
   propose_edit: "Propose change", apply_edit: "Apply change (checkpointed)", deterministic_fix: "Apply rename (no model)",
-  verify_syntax: "Verify syntax", verify_lint: "Verify lint", verify_tests: "Run tests", diff: "Collect diff",
+  verify_syntax: "Verify syntax", verify_requirements: "Check the requested code exists",
+  verify_lint: "Verify lint", verify_tests: "Run tests", diff: "Collect diff",
   static_review: "Automated review", llm_review: "Model review", report: "Report",
 };
 
@@ -78,7 +79,7 @@ const EDGES = [
 ];
 
 function nodeFor(kind: string, method: string | null): string {
-  if (["apply_edit", "verify_syntax", "verify_lint", "verify_tests", "validate_answer"].includes(kind)) return "validator";
+  if (["apply_edit", "verify_syntax", "verify_requirements", "verify_lint", "verify_tests", "validate_answer"].includes(kind)) return "validator";
   if (kind === "report") return "evaluator";
   if (method?.startsWith("llm")) return "llm";
   if (method === "nlp" || kind === "context") return "nlp";

@@ -90,6 +90,16 @@ def create_task(workspace: str, request: str, *, session_id: str | None = None, 
     """UNDERSTAND + PLAN. Cheap, deterministic, persisted before anything runs."""
     opts = dict(options or {})
     ir = classify_intent(request)
+    refine = opts.get("refine_of")
+    if refine:
+        # Refine stage: the follow-up continues the previous change. Its wording alone
+        # ("now also handle None") rarely says what to do or where, so the previous
+        # task's intent and files carry over unless the new text is a clear rule match.
+        if ir.stage != "rules" or ir.intent in ("general_coding", "explain_code"):
+            inherited = refine.get("intent") if refine.get("intent") in MEM._MODIFYING else "implement"
+            ir.intent, ir.deterministic, ir.stage = inherited, False, "refine"
+        ir.params["files"] = list(dict.fromkeys(refine.get("files", []) + ir.params.get("files", [])))
+        ir.complexity = {**ir.complexity, "level": ir.complexity.get("level", "low")}
     allow_edits = bool(opts.get("allow_edits", False))
     has_tests = C.detect_test_runner(workspace) is not None
     plan = plan_for(ir, allow_edits=allow_edits, has_tests=has_tests)
@@ -107,6 +117,10 @@ def create_task(workspace: str, request: str, *, session_id: str | None = None, 
             params=ir.params, complexity=ir.complexity,
             explanation=f"Intent '{ir.intent}' from {'rules' if ir.stage == 'rules' else 'the TF-IDF/LogReg intent model'} "
                         f"({ir.confidence:.2f}); complexity {ir.complexity.get('level')}.")
+    if refine:
+        S.event(st["id"], "refine", refine_of=refine["task_id"], files=refine.get("files"),
+                explanation=f"Continuing the previous change (task {refine['task_id']}): reusing its files "
+                            f"{', '.join(refine.get('files') or []) or '-'} and its diff as context.")
     S.event(st["id"], "plan", steps=[{"name": s["name"], "kind": s["kind"]} for s in plan],
             explanation=f"{len(plan)} step(s); edits {'allowed' if allow_edits else 'not allowed (read-only)'}; "
                         f"tests {'detected' if has_tests else 'not detected'}.")
@@ -394,9 +408,22 @@ def _llm_call(ctx: Ctx, prompt: str, *, system: str, max_tokens: int, temperatur
             _release("llm")
         used = (r.meta or {}).get("tier") or tier
         method = {"capable": "llm_capable", "small": "llm_small", "general": "llm_general"}.get(used, "llm_small")
+        if (r.meta or {}).get("degraded_from"):
+            S.event(ctx.st["id"], "ram", step=ctx.step["name"] if ctx.step else None, model=r.model,
+                    degraded_from=r.meta["degraded_from"], ram=r.meta.get("ram"),
+                    explanation=f"Not enough free RAM for {r.meta['degraded_from']}; used the smaller {r.model} "
+                                "instead. Verification still decides whether its output is accepted.")
         remember("llm_cache", key, json.dumps({"text": r.text, "model": r.model}), source="llm", confidence=0.5)
         return r, method, None
     return None, "llm_small", "; ".join(errors) or "no model available"
+
+
+def _task_text(ctx: Ctx) -> str:
+    """The request as the model should read it: a refinement carries the request it refines."""
+    refine = ctx.st["options"].get("refine_of")
+    if not refine:
+        return ctx.st["task"]
+    return f"{ctx.st['task']}\n\n(This refines the previous request in this session: \"{refine.get('request', '')[:300]}\")"
 
 
 def _is_ws_file(ws: str, rel: str) -> bool:
@@ -408,6 +435,51 @@ def _is_ws_file(ws: str, rel: str) -> bool:
 
 def _is_test_path(rel: str) -> bool:
     return bool(re.search(r"(^|/)tests?/|(^|/)test_|_test\.py$|\.test\.|\.spec\.", rel))
+
+
+_CODE_LANGS = {"python", "typescript", "javascript", "rust", "go", "java", "c", "cpp", "csharp"}
+
+
+def _is_code(rel: str) -> bool:
+    from backend.agent.symbols import language_of
+
+    return language_of(rel) in _CODE_LANGS
+
+
+def functions_under_test(ws: str, failures: list[dict]) -> list[str]:
+    """Fault localisation without a model: the source files defining what failing tests call.
+
+    An assertion failure's traceback shows only the test file, so the function under test
+    is read from the failing test's own body (ast), then located through the symbol index.
+    """
+    import ast
+
+    from backend.agent import project_index as PI
+
+    out: list[str] = []
+    for f in failures:
+        node = f.get("nodeid") or ""
+        if "::" not in node:
+            continue
+        rel, test_name = node.split("::")[0], node.split("::")[-1].split("[")[0]
+        try:
+            tree = ast.parse(C.policy.resolve_path(ws, rel).read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, C.policy.PolicyError):
+            continue
+        fn = next((n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == test_name), None)
+        if fn is None:
+            continue
+        called = []
+        for n in ast.walk(fn):
+            if isinstance(n, ast.Call):
+                name = n.func.id if isinstance(n.func, ast.Name) else n.func.attr if isinstance(n.func, ast.Attribute) else None
+                if name and name not in called and not name.startswith("assert"):
+                    called.append(name)
+        for name in called:
+            for s in PI.find_symbols(ws, name, exact=True, limit=5)["symbols"]:
+                if not _is_test_path(s["path"]) and s["path"] not in out:
+                    out.append(s["path"])
+    return out
 
 
 def _error_text(ctx: Ctx) -> str:
@@ -437,6 +509,10 @@ def h_tool(ctx: Ctx) -> Outcome:
         raise AwaitApproval(ctx.ir.intent, str(res.meta.get("approval", {}).get("target")), res.error)
     if res.error and res.error.startswith("deferred"):
         raise Deferred(res.error)
+    gov = res.meta.get("governor") or {}
+    if gov.get("waited_ms", 0) > 1:  # a heavy tool waited for CPU: make it visible
+        S.event(ctx.st["id"], "governor", step=ctx.step["name"], reason=gov.get("reason"), waited_ms=gov.get("waited_ms"),
+                state=gov.get("state"), explanation=f"Waited {round(gov['waited_ms'] / 1000, 1)} s for CPU load to drop before running.")
     ctx.st["last_output"] = res.meta.get("answer") or res.error or ""
     if res.meta.get("files"):
         S.add_active_files(ctx.st, res.meta["files"])
@@ -486,8 +562,10 @@ def h_locate(ctx: Ctx) -> Outcome:
     tb_files = [loc["path"] for loc in PI.traceback_locations(err, ws)]
     tb_files += [loc["path"] for loc in (ctx.data.get("reproduce") or {}).get("locations", [])]
     tb_files = list(dict.fromkeys(f for f in tb_files if _is_ws_file(ws, f)))
-    order = list(dict.fromkeys(mentioned + tb_files + ranked))
-    src = [f for f in order if not _is_test_path(f)]
+    under_test = functions_under_test(ws, (ctx.data.get("reproduce") or {}).get("failures", []))
+    order = list(dict.fromkeys(mentioned + under_test + tb_files + ranked))
+    # Editable: code files, plus anything the request names explicitly (config, docs).
+    src = [f for f in order if not _is_test_path(f) and (_is_code(f) or f in mentioned)]
     tst = [f for f in order if _is_test_path(f)]
     # Which existing files a proposed edit may touch. A bug fix never edits the tests
     # (that is how a failing test gets "fixed" by weakening it) unless the request
@@ -504,13 +582,17 @@ def h_locate(ctx: Ctx) -> Outcome:
     else:
         editable = (src + tst[:1])[:3]
     ctx.data["located"] = order[:8]
+    ctx.data["functions_under_test"] = under_test
     ctx.data["allowed_files"] = editable
     ctx.data["ranking"] = {"confidence": ranking["confidence"], "files": ranking["files"][:6]}
     S.add_active_files(ctx.st, editable)
     S.refresh_fingerprint(ctx.st)
-    method = "deterministic" if mentioned or tb_files else "nlp"
+    method = "deterministic" if mentioned or tb_files or under_test else "nlp"
+    modifying = any(s["kind"] in ("propose_edit", "deterministic_fix") for s in ctx.st["plan"])
     return Outcome(bool(order) or ctx.ir.intent == "general_coding",
-                   summary="relevant: " + ", ".join(order[:5]) + (f" · editable: {', '.join(editable)}" if editable else ""),
+                   summary="relevant: " + ", ".join(order[:5])
+                   + (f" · under test: {', '.join(under_test)}" if under_test else "")
+                   + (f" · editable: {', '.join(editable)}" if editable and modifying else ""),
                    method=method, confidence=1.0 if method == "deterministic" else ranking["confidence"],
                    error=None if order or ctx.ir.intent == "general_coding" else "no relevant files found")
 
@@ -522,7 +604,11 @@ def h_context(ctx: Ctx) -> Outcome:
     scale = governor().policy()["context_scale"]
     items = MEM.memory_items_for(ctx.ws, ctx.st["task"])
     history = [d["text"] for d in ctx.st["decisions"][-5:] if isinstance(d, dict) and d.get("text")]
-    text, acct = build_code_context(ctx.ws, ctx.st["task"], error_text=_error_text(ctx), memory_items=items,
+    refine = ctx.st["options"].get("refine_of")
+    if refine:
+        history = [f"Previous request in this session: {refine.get('request', '')[:300]}",
+                   f"Change already made for it:\n{refine.get('diff') or '(no diff recorded)'}"] + history
+    text, acct = build_code_context(ctx.ws, _task_text(ctx), error_text=_error_text(ctx), memory_items=items,
                                     history=history, scale=scale, pinned_files=ctx.data.get("allowed_files", [])[:2])
     ctx.data["context"] = text
     ctx.data["context_acct"] = {k: acct[k] for k in ("context_chars", "tokens_est", "budget_chars", "files",
@@ -548,7 +634,7 @@ def h_answer(ctx: Ctx) -> Outcome:
             ans = f"This error was seen before ({known.get('count')}x). It was resolved by: {known['resolution']}"
             ctx.st["last_output"] = ans
             return Outcome(True, summary=ans[:300], method="memory", confidence=0.92)
-    prompt = code_answer_prompt(request=ctx.st["task"], context=ctx.data.get("context", ""), max_tokens=600)
+    prompt = code_answer_prompt(request=_task_text(ctx), context=ctx.data.get("context", ""), max_tokens=600)
     r, method, err = _llm_call(ctx, prompt, system=SYSTEM_CODER, max_tokens=600, temperature=0.2, finish="prose")
     if r is None:
         return Outcome(False, error=f"no model could answer: {err}", method="llm_small")
@@ -595,8 +681,14 @@ def h_propose_edit(ctx: Ctx) -> Outcome:
                                confidence=0.95)
     feedback = ctx.data.pop("retry_feedback", "") or ""
     failure = "\n".join(x for x in (ctx.data.get("last_failure", ""), feedback) if x)
-    prompt = code_edit_prompt(request=ctx.st["task"], context=ctx.data.get("context", ""), failure=failure[-3000:],
-                              allowed_files=allowed)
+    extra = []
+    required = ctx.ir.params.get("required_calls") or []
+    if required and ctx.ir.intent in ("implement", "create_file", "refactor"):
+        extra.append("The request asks for these functions: " + ", ".join(
+            f"{r['name']}({r['arity']} parameter{'s' if r['arity'] != 1 else ''})" for r in required)
+            + ". Add each one; do not modify existing functions the request does not mention.")
+    prompt = code_edit_prompt(request=_task_text(ctx), context=ctx.data.get("context", ""), failure=failure[-3000:],
+                              allowed_files=allowed, constraints=extra)
     order = _tiers(ctx) if ctx.step["attempts"] == 1 else ["capable", "small"]
     r, method, err = _llm_call(ctx, prompt, system=SYSTEM_CODER, max_tokens=900, temperature=0.1, tier_order=order,
                                finish="edits")
@@ -607,6 +699,10 @@ def h_propose_edit(ctx: Ctx) -> Outcome:
     dry = E.apply_blocks(ctx.ws, blocks, allowed_files=allowed or None, allow_new_files=allow_new, dry_run=True)
     ctx.data["proposal"] = {"blocks": [b.to_dict() for b in blocks], "model": r.model, "diff": dry.diff,
                             "raw": redact(r.text[:4000])[0]}
+    attempts = ctx.data.setdefault("proposal_attempts", [])
+    attempts.append({"model": r.model, "method": method, "ok": dry.ok, "errors": dry.errors[:3],
+                     "raw": redact(r.text[:2500])[0], "ts": time.time()})
+    ctx.data["proposal_attempts"] = attempts[-6:]
     if not dry.ok:
         # An inapplicable proposal must never be served from the cache again.
         from backend.db import execute
@@ -672,6 +768,195 @@ def h_verify_syntax(ctx: Ctx) -> Outcome:
     ctx.st["validation_results"].append({"check": "syntax", "ok": ok, "errors": errors[:5], "ts": time.time()})
     return Outcome(ok, summary="syntax OK" if ok else f"{len(errors)} syntax error(s)", method="deterministic",
                    error=None if ok else "; ".join(f"{e['path']}:{e.get('line')}: {e.get('error')}" for e in errors))
+
+
+def _arity(fn) -> int:
+    a = fn.args
+    params = [x.arg for x in a.posonlyargs + a.args + a.kwonlyargs if x.arg not in ("self", "cls")]
+    return len(params) + (1 if a.vararg else 0) + (1 if a.kwarg else 0)
+
+
+def _top_level(text: str, rel: str) -> dict[str, tuple[int, str]]:
+    """Reachable definitions only: module-level functions/classes and methods of top-level
+    classes -> (parameter count or -1, ast dump). A function nested inside another function
+    is not importable (measured: a model defined `is_palindrome` inside `slugify`)."""
+    import ast
+
+    if not rel.endswith(".py"):
+        return {m.group(1): (-1, "") for m in re.finditer(r"^(?:export\s+)?(?:function\s+|(?:const|let|var)\s+)([A-Za-z_$][\w$]*)",
+                                                         text, re.M)}
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return {}
+    out: dict[str, tuple[int, str]] = {}
+    for n in tree.body:
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            out[n.name] = (_arity(n), ast.dump(n))
+        elif isinstance(n, ast.ClassDef):
+            out[n.name] = (-1, ast.dump(n))
+            for m in n.body:
+                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    out.setdefault(m.name, (_arity(m), ast.dump(m)))
+    return out
+
+
+def _defined_functions(ws: str, rel: str) -> dict[str, int]:
+    """name -> parameter count for reachable definitions in a workspace file."""
+    try:
+        text = C.policy.resolve_path(ws, rel).read_text(encoding="utf-8")
+    except (OSError, C.policy.PolicyError):
+        return {}
+    return {k: v[0] for k, v in _top_level(text, rel).items()}
+
+
+def _unrelated_modifications(ctx: Ctx, requested: set[str]) -> list[str]:
+    """Existing functions whose code changed although the request only asked for new ones."""
+    import base64
+
+    cp_id = next((s.get("checkpoint_id") for s in ctx.st["plan"] if s["kind"] == "apply_edit" and s.get("checkpoint_id")), None)
+    cp = CP.get(cp_id, with_content=True) if cp_id else None
+    out = []
+    for f in (cp or {}).get("files", []):
+        if not f.get("existed") or not f["path"].endswith(".py"):
+            continue
+        before = _top_level(base64.b64decode(f["content_b64"]).decode("utf-8", "replace"), f["path"])
+        try:
+            after = _top_level(C.policy.resolve_path(ctx.ws, f["path"]).read_text(encoding="utf-8"), f["path"])
+        except (OSError, C.policy.PolicyError):
+            continue
+        for name, (arity, dump) in before.items():
+            # Classes change legitimately when a requested method is added to them.
+            if arity < 0 or name in requested or name not in after:
+                continue
+            if after[name][1] != dump:
+                out.append(f"`{name}` was modified in {f['path']} but the request did not ask to change it")
+    return out
+
+
+def _hoist_dead_nested(text: str, required: set[str]) -> tuple[str, list[str]]:
+    """Move requested functions that were written after a `return` inside another function
+    (unreachable there) to module level, right after that function."""
+    import ast
+    import textwrap as tw
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text, []
+    lines = text.splitlines(keepends=True)
+    moves = []  # (outer_end_line, start, end, name)
+    for outer in tree.body:
+        if not isinstance(outer, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        seen_return = False
+        for stmt in outer.body:
+            if isinstance(stmt, ast.Return):
+                seen_return = True
+            elif seen_return and isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name in required:
+                moves.append((outer.end_lineno, stmt.lineno - len(stmt.decorator_list), stmt.end_lineno, stmt.name))
+    if not moves:
+        return text, []
+    nl = "\r\n" if "\r\n" in text else "\n"
+    for _outer_end, start, end, name in sorted(moves, key=lambda m: -m[1]):
+        block = tw.dedent("".join(lines[start - 1:end]).replace("\r\n", "\n")).strip("\n")
+        del lines[start - 1:end]
+        while start - 2 >= 0 and start - 2 < len(lines) and not lines[start - 2].strip():
+            del lines[start - 2]  # blank lines the nested block left behind
+            start -= 1
+        body = "".join(lines).rstrip() + nl + nl + nl + block.replace("\n", nl) + nl
+        lines = body.splitlines(keepends=True)
+    return "".join(lines), [m[3] for m in moves]
+
+
+def _revert_unrequested(before: str, after: str, rel: str, requested: set[str]) -> tuple[str, list[str]]:
+    """Restore the exact original source of existing functions the request did not mention."""
+    import ast
+
+    try:
+        tb, ta = ast.parse(before), ast.parse(after)
+    except SyntaxError:
+        return after, []
+    old = {n.name: n for n in tb.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    new = {n.name: n for n in ta.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    blines, alines = before.splitlines(keepends=True), after.splitlines(keepends=True)
+    reverted = []
+    for name, node in sorted(new.items(), key=lambda kv: -kv[1].lineno):
+        if name in requested or name not in old or ast.dump(old[name]) == ast.dump(node):
+            continue
+        o = old[name]
+        original = blines[o.lineno - 1 - len(o.decorator_list):o.end_lineno]
+        alines[node.lineno - 1 - len(node.decorator_list):node.end_lineno] = original
+        reverted.append(name)
+    return "".join(alines), reverted
+
+
+def _normalize_implementation(ctx: Ctx, required: set[str]) -> list[str]:
+    """Deterministic clean-up of two measured small-model habits before judging requirements."""
+    import base64
+
+    cp_id = next((s.get("checkpoint_id") for s in ctx.st["plan"] if s["kind"] == "apply_edit" and s.get("checkpoint_id")), None)
+    cp = CP.get(cp_id, with_content=True) if cp_id else None
+    notes = []
+    for f in (cp or {}).get("files", []):
+        if not f["path"].endswith(".py"):
+            continue
+        try:
+            current = C.policy.resolve_path(ctx.ws, f["path"]).read_text(encoding="utf-8")
+        except (OSError, C.policy.PolicyError):
+            continue
+        text, hoisted = _hoist_dead_nested(current, required)
+        reverted: list[str] = []
+        if f.get("existed"):
+            text, reverted = _revert_unrequested(base64.b64decode(f["content_b64"]).decode("utf-8", "replace"),
+                                                 text, f["path"], required)
+        if (hoisted or reverted) and C._quick_syntax(f["path"], text).get("ok") is not False:
+            C.write_file(ctx.ws, f["path"], text, checkpoint_id=cp_id, task_id=ctx.st["id"])
+            if hoisted:
+                notes.append(f"moved {', '.join(hoisted)} to module level in {f['path']} (it was unreachable after a return)")
+            if reverted:
+                notes.append(f"restored unrequested changes to {', '.join(reverted)} in {f['path']}")
+    if notes:
+        ctx.data["last_diff"] = CP.diff_since(cp_id)["diff"]
+        ctx.step["after_hashes"] = S.fingerprint(ctx.ws, ctx.data.get("files_changed", []))
+        ctx.st["decisions"].append({"ts": time.time(), "text": "normalized model edit: " + "; ".join(notes)})
+        S.event(ctx.st["id"], "normalize", step=ctx.step["name"], notes=notes,
+                explanation="Deterministic clean-up of the model's edit: " + "; ".join(notes) + ".")
+    return notes
+
+
+def h_verify_requirements(ctx: Ctx) -> Outcome:
+    """What the request asked to exist must exist - the existing tests cannot see new code."""
+    changed = ctx.data.get("files_changed", [])
+    required = ctx.ir.params.get("required_calls") or []
+    problems: list[str] = []
+    notes = _normalize_implementation(ctx, {r["name"] for r in required}) if required and ctx.ir.intent in ("implement", "create_file") else []
+    if ctx.ir.intent == "write_tests":
+        new_tests = [n for f in changed if _is_test_path(f) for n in _defined_functions(ctx.ws, f) if n.startswith("test")]
+        if not new_tests:
+            problems.append("no test functions (named test_...) were written in a test file")
+    if required:
+        defined: dict[str, int] = {}
+        for f in dict.fromkeys(changed + (ctx.data.get("allowed_files") or [])):
+            defined.update(_defined_functions(ctx.ws, f))
+        for req in required:
+            name, arity = req["name"], req["arity"]
+            if name not in defined:
+                problems.append(f"`{name}` is not defined at module level in {', '.join(changed) or 'the changed files'}")
+            elif defined[name] >= 0 and arity and defined[name] != arity:
+                problems.append(f"`{name}` takes {defined[name]} parameter(s); the request specifies {arity}")
+        if ctx.ir.intent in ("implement", "create_file"):
+            problems += _unrelated_modifications(ctx, {r["name"] for r in required})
+    ok = not problems
+    ctx.st["validation_results"].append({"check": "requirements", "ok": ok, "required": required,
+                                         "problems": problems, "ts": time.time()})
+    if ok:
+        what = ", ".join(r["name"] for r in required) or ("test functions" if ctx.ir.intent == "write_tests" else "")
+        return Outcome(True, summary=f"requirements met{': ' + what if what else ' (none stated)'}"
+                       + (f" after clean-up ({'; '.join(notes)})" if notes else ""), method="deterministic")
+    return Outcome(False, method="deterministic",
+                   error="the change does not do what was asked: " + "; ".join(problems)
+                   + ". Add the requested code and leave unrelated existing functions unchanged.")
 
 
 _SERIOUS = re.compile(r"undefined name|redefinition of unused|used before assignment|syntax error", re.I)
@@ -816,7 +1101,8 @@ HANDLERS: dict[str, Callable[[Ctx], Outcome]] = {
     "tool": h_tool, "run_tests": h_run_tests, "locate": h_locate, "context": h_context, "answer": h_answer,
     "validate_answer": h_validate_answer, "propose_edit": h_propose_edit, "apply_edit": h_apply_edit,
     "deterministic_fix": h_deterministic_fix, "verify_syntax": h_verify_syntax, "verify_lint": h_verify_lint,
-    "verify_tests": h_verify_tests, "diff": h_diff, "static_review": h_static_review, "llm_review": h_llm_review,
+    "verify_tests": h_verify_tests, "verify_requirements": h_verify_requirements,
+    "diff": h_diff, "static_review": h_static_review, "llm_review": h_llm_review,
     "report": h_report,
 }
 

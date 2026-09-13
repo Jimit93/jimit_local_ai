@@ -46,6 +46,16 @@ def test_whitespace_and_indentation_fallbacks(workspace):
     assert "        return int(self.total)" in Path(workspace, "calc.py").read_text(encoding="utf-8")
 
 
+def test_over_indented_blocks_are_dedented_to_match(workspace):
+    # Measured on qwen2.5-coder:3b: SEARCH and REPLACE both carried four extra spaces.
+    txt = ("calc.py\n<<<<<<< SEARCH\n    def mul(a, b):\n        return a * b\n=======\n"
+           "    def mul(a, b):\n        return a * b\n\n    def div(a, b):\n        return a / b\n>>>>>>> REPLACE")
+    rep = E.apply_blocks(workspace, E.parse_blocks(txt), allow_new_files=True)
+    assert rep.ok, rep.errors
+    text = Path(workspace, "calc.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "\ndef div(a, b):\n    return a / b" in text and "\ndef mul(a, b):" in text
+
+
 def test_refusals(workspace):
     missing = "calc.py\n<<<<<<< SEARCH\nreturn a / b\n=======\nreturn 0\n>>>>>>> REPLACE"
     rep = E.apply_blocks(workspace, E.parse_blocks(missing))
@@ -59,6 +69,21 @@ def test_refusals(workspace):
     escape = "../evil.py\n<<<<<<< SEARCH\n=======\nx = 1\n>>>>>>> REPLACE"
     assert not E.apply_blocks(workspace, E.parse_blocks(escape), allow_new_files=True).ok
     assert not E.apply_blocks(workspace, []).ok
+
+
+def test_empty_search_appends_only_when_new_code_is_allowed(workspace):
+    add = "calc.py\n<<<<<<< SEARCH\n=======\ndef sub(a, b):\n    return a - b\n>>>>>>> REPLACE"
+    assert not E.apply_blocks(workspace, E.parse_blocks(add)).ok  # a bug fix may not append
+    rep = E.apply_blocks(workspace, E.parse_blocks(add), allow_new_files=True)
+    assert rep.ok and rep.applied[0]["append"] is True
+    text = Path(workspace, "calc.py").read_text(encoding="utf-8")
+    assert text.rstrip().endswith("def sub(a, b):\n    return a - b") and "\n\n\ndef sub" in text
+
+
+def test_syntax_error_feedback_shows_the_resulting_lines(workspace):
+    bad = "calc.py\n<<<<<<< SEARCH\n    return a * b\n=======\n    return a * (b\n>>>>>>> REPLACE"
+    rep = E.apply_blocks(workspace, E.parse_blocks(bad))
+    assert not rep.ok and "the file would become:" in rep.errors[0] and "| " in rep.errors[0]
 
 
 def test_syntax_errors_are_never_written(workspace):

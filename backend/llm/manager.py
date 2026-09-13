@@ -82,12 +82,40 @@ def _finish(r: LLMResult, mode: str) -> LLMResult:
     return r
 
 
+def _ensure_ram_general() -> dict:
+    """Before the general llama.cpp model loads: free idle agent-owned RAM, re-select to fit.
+
+    Found by the system backtest: with a code model resident in Ollama, the general-model
+    fallback loaded a 4.4 GB GGUF chosen for RAM that had been free earlier, and free RAM
+    fell to 0.01 GB.
+    """
+    if is_loaded():
+        return {"already_loaded": True}
+    from backend.agent import ram as RAM
+
+    mf = select_model(SETTINGS.llm.prefer_size) if not SETTINGS.llm.model_path else None
+    size_gb = (mf.total_size_bytes / 1e9) if mf else 1.5
+    need = round(size_gb * 1.15 + SETTINGS.agent.ram_min_available_gb, 2)
+    rep = RAM.reclaim(need, keep_models={"llama.cpp"}, use_allowlist=False)
+    if SETTINGS.llm.prefer_size == "auto" and not SETTINGS.llm.model_path:
+        chosen = select_model("auto")  # re-select with the RAM that is actually free now
+        if _instance is None or (chosen and getattr(_instance, "model_path", None) != chosen.path):
+            llm(force_reload=True)
+        small = select_model("small")
+        need_small = (small.total_size_bytes / 1e9) * 1.15 + SETTINGS.agent.ram_min_available_gb if small else 0
+        if RAM.available_gb() < need_small:
+            raise InsufficientRAM(small.name if small else "general model",
+                                  {**rep, "shortfall_gb": round(need_small - RAM.available_gb(), 2)})
+    return rep
+
+
 def generate(prompt: str, *, finish: str = "prose", **kw) -> LLMResult:
     """Single funnel for every LLM call so usage is always accounted.
 
     `finish`: "prose" (default) trims a truncated reply to its last complete sentence,
     "edits" drops an unterminated edit block, "none" returns the raw text.
     """
+    _ensure_ram_general()
     _mark("llamacpp", +1, _busy)
     try:
         r = _finish(llm().generate(prompt, **kw), finish)
@@ -178,7 +206,22 @@ def generate_code(prompt: str, *, tier: str = "small", system: str | None = None
     model = resolve_code_model(tier)
     if model is None:
         raise RuntimeError("no coding model is installed in Ollama")
-    ram_report = _ensure_ram_for(model, task_id=task_id)
+    try:
+        ram_report = _ensure_ram_for(model, task_id=task_id)
+    except InsufficientRAM as e:
+        # Degrade instead of failing: the largest installed code model that fits the RAM
+        # that is actually free after reclaim. Verification downstream catches weak output.
+        free = e.report.get("end_available_gb") or 0.0
+        # Configured (preferred) models before legacy fallbacks, then larger first. Measured in the
+        # system backtest: the older deepseek-coder:6.7b produced escaped-string edits where
+        # qwen2.5-coder:3b did not, so a newer small model beats an older large one here.
+        fits = [m for m in sorted(code_models(), key=lambda m: (not m.get("preferred"), -m["size_gb"]))
+                if m["name"] != model["name"] and m["size_gb"] * 1.15 + SETTINGS.agent.ram_min_available_gb <= free]
+        if not fits:
+            raise
+        degraded_from, model = model["name"], fits[0]
+        ram_report = {**_ensure_ram_for(model, task_id=task_id), "degraded_from": degraded_from,
+                      "free_gb": free, "shortfall_gb": e.report.get("shortfall_gb")}
     ad = _code_adapters.get(model["name"])
     if ad is None:
         ad = _code_adapters[model["name"]] = QwenOllamaAdapter(model["name"])
@@ -200,8 +243,9 @@ def generate_code(prompt: str, *, tier: str = "small", system: str | None = None
     USAGE["completion_tokens"] += r.completion_tokens
     USAGE["latency_ms"] += r.latency_ms
     r.meta.update({"tier": model["tier"], "requested_tier": tier, "threads": threads,
-                   "ram": {k: ram_report.get(k) for k in ("already_loaded", "start_available_gb", "end_available_gb", "actions")
-                           if k in ram_report}})
+                   "degraded_from": ram_report.get("degraded_from"),
+                   "ram": {k: ram_report.get(k) for k in ("already_loaded", "start_available_gb", "end_available_gb", "actions",
+                                                          "free_gb", "shortfall_gb") if k in ram_report}})
     return r
 
 

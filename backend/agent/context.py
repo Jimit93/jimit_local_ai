@@ -146,7 +146,7 @@ def build_code_context(
         "files": files_acct, "ranking_confidence": ranking["confidence"], "ranking_ms": ranking["ms"],
         "redactions": redactions, "budget_chars": budget, "tokens_est": estimate_tokens(text),
         "build_ms": round((time.perf_counter() - t0) * 1000, 1),
-        "whole_repo_chars_avoided": _repo_chars(ws) - len(text),
+        "whole_repo_chars_avoided": max(0, _repo_chars(ws) - len(text)),
     })
     return text, acct
 

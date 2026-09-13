@@ -75,9 +75,39 @@ def _derive(st: dict) -> None:
     st["failed_steps"] = [s["name"] for s in st["plan"] if s["status"] == "failed"]
 
 
+_ME: dict | None = None
+
+
+def process_identity() -> dict:
+    """pid + process start time: a pid alone can be reused by an unrelated process."""
+    global _ME
+    if _ME is None:
+        import os
+
+        import psutil
+
+        _ME = {"pid": os.getpid(), "create_time": round(psutil.Process().create_time(), 3)}
+    return _ME
+
+
+def owner_alive(owner: dict | None) -> bool:
+    if not owner:
+        return False
+    try:
+        import psutil
+
+        p = psutil.Process(int(owner["pid"]))
+        return abs(p.create_time() - float(owner["create_time"])) < 1.0
+    except Exception:
+        return False
+
+
 def save(st: dict, *, status: str | None = None) -> dict:
     if status:
         st["status"] = status
+    if st["status"] in (RUNNING, QUEUED):
+        # Several servers may share one database; each task records which process owns it.
+        st["owner"] = process_identity()
     _derive(st)
     st["updated_at"] = _now()
     blob = json.dumps(st, ensure_ascii=False, default=str)
@@ -328,12 +358,24 @@ def apply_resume(task_id: str, analysis: dict | None = None) -> dict:
     return st
 
 
-def recover_on_startup(stale_after_s: float = 20.0) -> list[dict]:
-    """Mark tasks orphaned by a previous process as interrupted and analyse each."""
+def recover_on_startup(stale_after_s: float = 0.0) -> list[dict]:
+    """Mark tasks orphaned by a dead process as interrupted and analyse each.
+
+    A task is orphaned when the process that owned it no longer exists - not merely
+    when its heartbeat is old (a fast restart would leave it "running" forever) and
+    never when another live server sharing this database still owns it.
+    """
     out = []
+    me = process_identity()
     cutoff = _now() - stale_after_s
-    for row in query("SELECT id,status,heartbeat_at FROM agent_tasks WHERE status IN (?,?)", (RUNNING, QUEUED)):
-        if (row["heartbeat_at"] or 0) > cutoff:
+    for row in query("SELECT id,status,heartbeat_at,state_json FROM agent_tasks WHERE status IN (?,?)", (RUNNING, QUEUED)):
+        try:
+            owner = json.loads(row["state_json"]).get("owner")
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            owner = None
+        if owner and owner != me and owner_alive(owner):
+            continue  # a live server owns this task
+        if stale_after_s and (row["heartbeat_at"] or 0) > cutoff and not owner:
             continue
         execute("UPDATE agent_tasks SET status=?, updated_at=? WHERE id=?", (INTERRUPTED, _now(), row["id"]))
         analysis = analyze_resume(row["id"])

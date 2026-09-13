@@ -51,8 +51,27 @@ backend/harness/           task_classifier, router, context_manager, prompt_buil
 backend/services/          style_engine, linkedin_writer
 backend/benchmarks/        tasks, runner (baseline vs harness), linkedin_backtest
 backend/api/app.py         FastAPI, localhost only
+backend/agent/             coding agent (docs/coding_agent/ARCHITECTURE.md): policy, proc,
+                           code_tools, checkpoints, governor, ram, project_index, context,
+                           memory, state, intents, executor, edits, planner, loop, worker
+backend/api/agent_routes.py  /api/agent/* (run, tasks, events, files, memory, checkpoints, RAM)
+backend/harness/completion.py  replies end on a complete sentence inside max_tokens
 frontend/                  React + TS + Vite (dev server proxies /api → :8077)
 ```
+
+## Coding-agent rules
+
+11. **Every agent file change goes through `code_tools` with a checkpoint.** Never write to a
+    workspace with plain `open()`; rollback depends on the snapshot taken first.
+12. **Paths, commands and secrets go through `agent/policy.py`.** Commands are argv allowlists,
+    never a shell. Delete, project scripts and process kills need a user approval the loop
+    cannot grant itself.
+13. **The loop owns sequencing; a model only proposes.** Edits are parsed and applied by
+    `edits.py` (unique match, dry-run, syntax check) and verified by tests before a task completes.
+14. **Heavy work is admitted by the governor** (`governor().slot("llm"|"tests"|...)`) and child
+    processes run through `proc.run_process` (Job Object CPU cap).
+15. **Agent tests never touch `data/agent.db`**: `tests/agent/conftest.py` swaps in a temporary
+    database; backtests use their own databases under `data/backtest/`.
 
 ## Generated artifacts — not in git, rebuilt by ingestion
 
@@ -73,6 +92,11 @@ start_agent.bat                both + opens the browser
 run_tests.bat                  pytest
 run_benchmark.bat              baseline vs harness, writes reports/
 run_backtest.bat               held-out LinkedIn style back-test
+python -m scripts.agent_backtest    coding-agent system backtest (real models, hidden tests)
+python -m scripts.restart_backtest  kill/restart/resume with real processes (port 8079)
+python -m scripts.stress_backtest   large repo, long session, bursts, failures, CPU/RAM pressure
+python -m scripts.cpu_backtest      CPU policy measurements
+scripts\test_backend.bat / test_frontend.bat   second instance on :8078 / :5174 for UI testing
 ```
 
 Run Python from the repo root as a module — `python -m pytest tests/test_router.py -q`,

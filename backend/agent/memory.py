@@ -90,6 +90,51 @@ def resolve_followup(session_id: str, request: str) -> dict | None:
     return None
 
 
+_REFINE_START = re.compile(
+    r"^\s*(?:(?:ok(?:ay)?|great|thanks|good|nice)[,!.]?\s+)?(?:now|also|and|but|instead|then|actually|additionally|plus|"
+    r"next|(?:can|could|would) you (?:also|now)|please (?:also|now)|make (?:it|them|that)|change (?:it|that)|"
+    r"rename (?:it|that)|update (?:it|that)|move (?:it|that)|have (?:it|them))\b", re.I)
+_PRONOUN = re.compile(r"\b(?:it|that|this|them|those|the same)\b", re.I)
+_MODIFYING = {"fix_bug", "implement", "refactor", "write_tests", "create_file", "rename_symbol"}
+
+
+def refinement_of(session_id: str | None, request: str, workspace: str, *, max_age_s: float = 1800) -> dict | None:
+    """Is this request a refinement of the session's last code change? Deterministic.
+
+    The Refine stage of describe -> generate -> test -> refine: "now also handle None" should
+    continue from the files and diff of the previous change, not start a cold search.
+    """
+    if not session_id:
+        return None
+    from backend.agent import state as S
+    from backend.agent.intents import classify_intent
+
+    last = next((m for m in reversed(session_recent(session_id, 40)) if m.get("task_id")), None)
+    if not last:
+        return None
+    try:
+        prev = S.load(last["task_id"])
+    except (KeyError, S.StateCorrupt):
+        return None
+    import time as _t
+
+    changed = prev.get("data", {}).get("files_changed") or []
+    if (prev["status"] not in (S.COMPLETED, S.FAILED) or policy._norm(prev["workspace"]) != policy._norm(workspace)
+            or _t.time() - prev.get("updated_at", 0) > max_age_s or not (changed or prev.get("intent") in _MODIFYING)):
+        return None
+    ir = classify_intent(request)
+    if ir.deterministic and ir.stage == "rules":
+        return None  # "git status", "run the tests": a new command, not a refinement
+    known = set(prev.get("active_files", [])) | set(changed)
+    if any(f not in known for f in ir.params.get("files", [])):
+        return None  # names another file: a new task
+    if not (_REFINE_START.search(request) or (_PRONOUN.search(request) and len(request) < 160)):
+        return None
+    files = list(dict.fromkeys(changed + [f for f in prev.get("active_files", []) if f not in changed]))[:4]
+    return {"task_id": prev["id"], "intent": prev.get("intent"), "request": prev["task"], "files": files,
+            "diff": (prev.get("data", {}).get("last_diff") or "")[:1500], "status": prev["status"]}
+
+
 # ----------------------------------------------------------------- project
 
 def learn_project(workspace: str) -> dict:

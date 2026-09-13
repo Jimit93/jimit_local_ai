@@ -111,6 +111,23 @@ def test_recover_on_startup_marks_orphans_interrupted(workspace):
     assert S.events(st["id"])[-1]["kind"] == "interrupted"
 
 
+def test_recovery_respects_live_owners_and_reclaims_dead_ones(workspace):
+    import psutil
+
+    parent = psutil.Process().parent()
+    live = S.new_task(workspace, "owned by another live server", plan=_plan())
+    S.save(live, status=S.RUNNING)
+    execute("UPDATE agent_tasks SET state_json=? WHERE id=?", (json.dumps(
+        {**S.load(live["id"]), "owner": {"pid": parent.pid, "create_time": parent.create_time()}}), live["id"]))
+    dead = S.new_task(workspace, "owned by a crashed server", plan=_plan())
+    S.save(dead, status=S.RUNNING)  # fresh heartbeat: a fast restart must still reclaim it
+    execute("UPDATE agent_tasks SET state_json=? WHERE id=?", (json.dumps(
+        {**S.load(dead["id"]), "owner": {"pid": 999999, "create_time": 1.0}}), dead["id"]))
+    recovered = {a["task_id"] for a in S.recover_on_startup()}
+    assert dead["id"] in recovered and live["id"] not in recovered
+    assert S.load(live["id"])["status"] == S.RUNNING and S.load(dead["id"])["status"] == S.INTERRUPTED
+
+
 def test_resume_reinspects_when_project_changed_offline(workspace):
     st = S.new_task(workspace, "fix add", plan=_plan())
     S.add_active_files(st, ["calc.py"])

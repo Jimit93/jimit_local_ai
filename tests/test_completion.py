@@ -73,6 +73,7 @@ def test_manager_applies_finish(monkeypatch):
             return LLMResult("First point is done. Second point is not", 5, 9, 1.0, "fake", "fake", stop_reason="length")
 
     monkeypatch.setattr(M, "llm", lambda force_reload=False: Fake())
+    monkeypatch.setattr(M, "_ensure_ram_general", lambda: {})  # never unload real models in a unit test
     r = M.generate("x")
     assert r.text == "First point is done." and r.meta["completion"]["truncated"] is True
     raw = M.generate("x", finish="none")

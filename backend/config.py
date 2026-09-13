@@ -111,6 +111,8 @@ class AgentSettings:
     max_edit_bytes: int = 1_000_000
     context_max_chars: int = 7000
     auto_resume: bool = os.environ.get("JLA_AGENT_AUTO_RESUME", "1") == "1"
+    # A follow-up in the same session ("now also ...") continues the previous change.
+    refine_continuation: bool = os.environ.get("JLA_AGENT_REFINE", "1") == "1"
     max_auto_resumes: int = 2
     # Code-model tiers (Ollama names). Cheapest first; the capable tier is only used
     # when RAM allows and a cheaper attempt was insufficient.

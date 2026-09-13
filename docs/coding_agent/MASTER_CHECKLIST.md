@@ -32,13 +32,14 @@ with the reason; `[ ]` = not started.
 - [x] Persistent state (Phase 4)
 - [x] Checkpoint system (Phases 1+4) — conflict-aware rollback
 - [x] Resume system (Phase 4) — unit-tested; real restart backtest pending (Phase 9)
-- [ ] LLM layer: code tiers (Phase 5)
-- [ ] Harness integration (Phase 5)
-- [ ] Coding agent loop (Phase 6)
-- [ ] Validation loops (Phase 6)
-- [ ] Recovery system (Phase 6)
-- [ ] API + worker (Phase 7)
-- [ ] Frontend (Phase 8)
+- [x] LLM layer: code tiers (Phase 5) — qwen2.5-coder:3b / deepseek-coder-v2:16b, RAM-fit degradation
+- [x] Harness integration (Phase 5) — 105 prior classifications unchanged (snapshot test)
+- [x] Coding agent loop (Phase 6)
+- [x] Validation loops (Phase 6) — syntax, lint (new issues), tests vs baseline, answer grounding
+- [x] Recovery system (Phase 6) — repair with rollback + escalation, repeated-failure stop, rollback of unverified changes
+- [x] API + worker (Phase 7)
+- [x] Frontend (Phase 8, `a546ab2`) — verified in browser on :5174/:8078
+- [x] Sentence completion within token limits (user request) — reports/agent/completion_eval.json
 
 ## Test and evaluate
 - [ ] Backend tested
@@ -93,8 +94,19 @@ Generate → Test → Refine; many small iterations beat one big prompt).
 - Latest coder models: qwen3-coder 30b (19 GB) does not fit 16.7 GB RAM; deepseek-coder-v2 16b
   lite (8.9 GB) fits only after RAM reclaim; qwen2.5-coder 1.5b/3b/7b fit. **Download needs user OK.**
 
+## Bugs found by backtests and fixed (Phase 9)
+- "list the utils folder" listed the root (directory name before "folder" ignored)
+- RAM starvation failed tasks instead of degrading to a smaller installed model
+- bug-fix locate offered `pytest.ini`/`README.md` as editable; no function-under-test localisation
+- "X returns the wrong sum, fix it" planned read-only (fix_bug phrasing)
+- startup recovery missed orphans after a fast restart; could steal tasks from a live server
+  sharing the DB (now owner pid + start time)
+- governor waits inside tool steps were invisible in the timeline
+
 ## State
-- Current phase: 5 (intents + LLM code tiers + harness integration)
-- Last checkpoint: phase-4 commit on `feature/coding-agent`
-- Tests: 83 agent tests pass; full suite last run 209 passed / 2 skipped (after phase 1)
-- Next action: `backend/agent/intents.py`, code tiers in `llm/manager.py`, router `workspace`/`coding` chains
+- Current phase: 9 (backtests)
+- Last checkpoint: `a546ab2` (phase 8)
+- Running: `system_backtest_before` (baseline for I1/I2)
+- Next: restart backtest, stress backtest, CPU backtest, then Phase 10 (I1/I2 with before/after)
+- Note: another session is developing the LinkedIn writer in this repo (refine_loop, hashtags);
+  its files are never staged with agent commits

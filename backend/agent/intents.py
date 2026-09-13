@@ -56,12 +56,19 @@ RULES: list[tuple[str, re.Pattern, float]] = [
     ("rename_file", re.compile(rf"\b(?:rename|move) (?:the )?(?:file )?{_P}\.\w+\s+to\s+{_P}", re.I), 0.93),
     ("delete_file", re.compile(rf"\b(?:delete|remove) (?:the )?file\s+{_P}", re.I), 0.93),
     ("fix_bug", re.compile(r"\b(?:fix|repair|debug|solve|resolve)\b.{0,50}\b(?:bug|tests?|failing|failure|errors?|crash|traceback|exception|issue|broken)\b|"
-                           r"\bmake (?:the )?tests? pass\b|\btests? (?:are )?failing\b", re.I), 0.92),
+                           r"\bmake (?:the )?tests? pass\b|\btests? (?:are )?failing\b|"
+                           # Found by the backtest: "line_total returns the wrong sum, fix it" was answered read-only.
+                           r"\b(?:returns?|gives?|produces?|outputs?|computes?|calculates?)\b.{0,40}\b(?:wrong|incorrect|bad)\b.{0,30}\bfix\b|"
+                           r"\bfix (?:it|this|that)\b|\b(?:doesn'?t|does not|isn'?t|is not) work(?:ing)?\b.{0,30}\bfix\b|"
+                           r"\bis broken\b.{0,30}\bfix\b", re.I), 0.92),
     ("analyze_error", re.compile(r"\btraceback \(most recent call last\)|\bwhy (?:does|is|do|am)\b.{0,60}\b(?:error|fail|failing|crash|exception|raise)|"
                                  r"\bwhat (?:does|causes) (?:this|the) (?:error|exception)\b", re.I), 0.9),
     ("refactor", re.compile(r"\brefactor\b|\bextract (?:a |the )?(?:function|method|class)\b|\bsimplify (?:the )?(?:function|code|class|method)\b", re.I), 0.9),
     ("create_file", re.compile(rf"\bcreate (?:a |an |the )?(?:new )?file\s+{_P}", re.I), 0.9),
-    ("implement", re.compile(r"^\s*(?:please\s+)?implement\b|\b(?:implement|add|build|create)\b.{0,40}\b(?:function|method|class|endpoint|feature|route|component|option|flag|parameter|validation|support for|cache|caching)\b", re.I), 0.88),
+    ("implement", re.compile(r"^\s*(?:please\s+)?implement\b|\b(?:implement|add|build|create)\b.{0,40}\b(?:functions?|methods?|class(?:es)?|endpoints?|features?|routes?|components?|options?|flags?|parameters?|validation|support for|cache|caching)\b|"
+                             # An action verb aimed at a code file is a code change, whatever else the sentence says
+                             # (found by the backtest: "add three functions to utils/strings.py: ..." went to text stats).
+                             r"^\s*(?:please\s+)?(?:add|create|implement|write|update|modify|change|extend)\b.{0,80}\b[\w./\\-]+\.(?:py|tsx?|jsx?)\b", re.I), 0.88),
     ("file_outline", re.compile(r"\boutline (?:of )?" + _P + r"\.\w+|\b(?:list (?:the )?(?:functions|classes|symbols)|what (?:functions|classes) are) (?:in|of) " + _P, re.I), 0.93),
     ("search_symbols", re.compile(r"\bwhere (?:is|are) (?:the )?(?:function|class|method|def|symbol)?\s*`?[A-Za-z_][\w.]*`?\s+(?:defined|declared|implemented)\b|"
                                   r"\b(?:find|go to|show) (?:the )?definition of\b", re.I), 0.94),
@@ -75,7 +82,7 @@ RULES: list[tuple[str, re.Pattern, float]] = [
     ("parse_data_file", re.compile(r"\b(?:parse|validate|load|read)\b.{0,20}[\w./\\-]+\.(?:json|csv)\b", re.I), 0.93),
     ("list_directory", re.compile(r"\b(?:list|show|what(?:'s| is) in)\b.{0,12}\b(?:the )?(?:directory|folder|dir)\b|^\s*ls\b|"
                                   r"\blist (?:the )?(?:contents|files) (?:of|in)\b", re.I), 0.93),
-    ("read_file", re.compile(r"\b(?:show|open|read|cat|print|display)\b(?: me)?(?: the)?(?: contents of)?(?: file)?\s+`?" + _P + r"\.\w+`?|"
+    ("read_file", re.compile(r"\b(?:show|open|read|cat|print|display)\b(?: me)?(?: the)?(?: contents of)?(?: file)?\s+`?[\w./\\-]*\.\w+`?|"
                              r"\b(?:show|print|display|read)\b.{0,10}\blines?\s+\d+.{0,25}" + _P + r"\.\w+", re.I), 0.93),
     ("project_overview", re.compile(r"\b(?:summari[sz]e|overview of|describe|explain) (?:the |this )?(?:project|codebase|repo|repository|architecture)\b|"
                                     r"\bwhat is this (?:project|codebase|repo)\b|\bproject structure\b", re.I), 0.9),
@@ -112,7 +119,8 @@ SEED: dict[str, list[str]] = {
     "memory_query": ["what was I working on yesterday", "remind me what we decided", "show unfinished work"],
     "project_overview": ["give me an overview of this codebase", "how is the repository organised", "what does this project do"],
     "explain_code": ["explain the retry logic in worker.py", "how does the context builder pick files", "what does select_ranges do"],
-    "fix_bug": ["the add test is failing please fix it", "repair the crash in the parser", "tests broke after my change, fix them"],
+    "fix_bug": ["the add test is failing please fix it", "repair the crash in the parser", "tests broke after my change, fix them",
+                "total returns the wrong value, fix it", "the discount calculation is broken"],
     "analyze_error": ["why am I getting a KeyError here", "what causes this ImportError", "explain this stack trace"],
     "implement": ["add a --verbose flag to the cli", "implement caching for read_file", "create an endpoint that lists tasks"],
     "refactor": ["clean up the duplicated code in utils", "split this big function into smaller ones", "simplify the router chain logic"],
@@ -199,9 +207,13 @@ def model() -> IntentModel:
 
 # ------------------------------------------------------------------ parameters
 
-# (?!\w) stops "config.json" from being read as "config.js".
-_FILE_RX = re.compile(r"`?((?:[\w.-]+[/\\])*[\w.-]+\.(?:json|py|tsx|ts|jsx|js|md|csv|toml|yaml|yml|ini|cfg|txt|html|css|bat|ps1|sql))(?!\w)`?", re.I)
+# (?!\w) stops "config.json" from being read as "config.js". Dotfiles (".env") are files too:
+# the backtest sent "show me .env" to a model instead of the tool whose policy refuses it.
+_FILE_RX = re.compile(r"`?((?:[\w.-]+[/\\])*[\w.-]+\.(?:json|py|tsx|ts|jsx|js|md|csv|toml|yaml|yml|ini|cfg|txt|html|css|bat|ps1|sql))(?!\w)`?|"
+                      r"(?:^|(?<=[\s`'\"(/\\]))((?:[\w.-]+[/\\])*\.(?:env(?:\.\w+)?|gitignore|npmrc|pypirc|netrc|editorconfig|dockerignore))(?![\w])", re.I)
 _DIR_RX = re.compile(r"\b(?:folder|directory|dir|in)\s+`?((?:[\w.-]+[/\\])*[\w.-]+)[/\\]?`?", re.I)
+_DIR_BEFORE_RX = re.compile(r"`?((?:[\w.-]+[/\\])*[\w.-]+)[/\\]?`?\s+(?:folder|directory|dir)\b", re.I)
+_DIR_STOP = {"the", "this", "that", "my", "a", "an", "current", "whole", "project", "root", "same", "which", "what", "each"}
 _GLOB_RX = re.compile(r"(\*\*?[\w./*-]*|[\w./-]*\*[\w./*-]*)")
 _QUOTED_RX = re.compile(r"[\"'`]([^\"'`]{1,120})[\"'`]")
 _LINES_RX = re.compile(r"\blines?\s+(\d+)(?:\s*(?:-|to|–|through)\s*(\d+))?", re.I)
@@ -214,12 +226,16 @@ _N_RX = re.compile(r"\b(\d{1,3})\b")
 def extract_params(text: str) -> dict:
     t = text or ""
     p: dict = {}
-    files = [m.group(1).replace("\\", "/") for m in _FILE_RX.finditer(t)]
+    files = [(m.group(1) or m.group(2)).replace("\\", "/") for m in _FILE_RX.finditer(t)]
     if files:
         p["files"] = list(dict.fromkeys(files))
+    # "folder utils" / "in utils" or "the utils folder"
     d = _DIR_RX.search(t)
-    if d and "." not in d.group(1).split("/")[-1] and d.group(1).lower() not in ("the", "this", "my", "a"):
-        p["directory"] = d.group(1).replace("\\", "/")
+    d_before = _DIR_BEFORE_RX.search(t)
+    for cand in ([d.group(1)] if d else []) + ([d_before.group(1)] if d_before else []):
+        if "." not in cand.split("/")[-1] and cand.lower() not in _DIR_STOP:
+            p["directory"] = cand.replace("\\", "/")
+            break
     globs = [g for g in _GLOB_RX.findall(t) if "*" in g]
     if globs:
         p["glob"] = globs[0]
@@ -239,6 +255,18 @@ def extract_params(text: str) -> dict:
     syms = [s for s in dict.fromkeys(syms) if not any(s in f for f in files)]
     if syms:
         p["symbols"] = syms
+    # Functions the request spells out as calls - "is_palindrome(text)", "truncate(text, n)" - are
+    # checkable requirements after an implementation step.
+    calls = []
+    for m in re.finditer(r"`?\b([A-Za-z_]\w*)\(([^()]*)\)`?", t):
+        name, args = m.group(1), m.group(2).strip()
+        if name.lower() in {"e", "i", "eg", "ie", "etc", "see", "like", "print", "len", "str", "int", "list", "dict"}:
+            continue
+        arity = 0 if not args else len([a for a in args.split(",") if a.strip()])
+        if all(re.fullmatch(r"\*{0,2}[A-Za-z_]\w*(?:\s*=\s*[^,]+)?", a.strip()) for a in args.split(",") if a.strip()):
+            calls.append({"name": name, "arity": arity})
+    if calls:
+        p["required_calls"] = calls
     tt = _TEST_TARGET_RX.search(t)
     if tt:
         p["test_target"] = tt.group(1)

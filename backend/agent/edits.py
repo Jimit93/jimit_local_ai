@@ -88,7 +88,11 @@ def _find_unique(content: str, search: str) -> tuple[int, int] | str:
 
 
 def _reindent(replace: str, original: str, search: str) -> str:
-    """If the match used the indentation fallback, shift REPLACE by the same offset."""
+    """If the match used the indentation fallback, shift REPLACE by the same offset - both ways.
+
+    Measured: a model indented SEARCH and REPLACE four extra spaces; the fallback matched the
+    SEARCH, and without the dedent the new top-level functions became an indentation error.
+    """
     def indent(s: str) -> int:
         for ln in s.splitlines():
             if ln.strip():
@@ -96,10 +100,41 @@ def _reindent(replace: str, original: str, search: str) -> str:
         return 0
 
     delta = indent(original) - indent(search)
-    if delta <= 0:
-        return replace
-    pad = " " * delta
-    return "\n".join(pad + ln if ln.strip() else ln for ln in replace.splitlines()) + ("\n" if replace.endswith("\n") else "")
+    lines = replace.splitlines()
+    tail = "\n" if replace.endswith("\n") else ""
+    if delta > 0:
+        pad = " " * delta
+        return "\n".join(pad + ln if ln.strip() else ln for ln in lines) + tail
+    if delta < 0:
+        cut = -delta
+        if all(not ln.strip() or len(ln) - len(ln.lstrip()) >= cut for ln in lines):
+            return "\n".join(ln[cut:] if ln.strip() else ln.strip() for ln in lines) + tail
+    return replace
+
+
+_PLACEHOLDER = re.compile(r"^(?:path/to/|your/|example/|some/)|^(?:file|filename|your_file|example)\.\w+$", re.I)
+
+
+def _repair_placeholder_paths(ws, blocks: list[EditBlock], allowed_files: list[str], rep: ApplyReport) -> list[EditBlock]:
+    """A block naming a placeholder path is re-targeted only when that is provably right:
+    exactly one editable file, and the block's SEARCH text matches it exactly once."""
+    if len(allowed_files) != 1:
+        return blocks
+    target = allowed_files[0]
+    out = []
+    for b in blocks:
+        if _PLACEHOLDER.search(b.path) and b.path != target:
+            try:
+                p = policy.resolve_path(ws, target)
+                content = C._read_text(p)[0] if p.is_file() else ""
+            except (policy.PolicyError, OSError, ValueError):
+                content = ""
+            if content and b.search.strip() and not isinstance(_find_unique(content, b.search), str):
+                rep.applied.append({"path": target, "retargeted_from": b.path})
+                out.append(EditBlock(target, b.search, b.replace))
+                continue
+        out.append(b)
+    return out
 
 
 def apply_blocks(workspace: str, blocks: list[EditBlock], *, allowed_files: list[str] | None = None,
@@ -111,6 +146,17 @@ def apply_blocks(workspace: str, blocks: list[EditBlock], *, allowed_files: list
         return rep
     ws = policy.resolve_workspace(workspace)
     allowed = {a.replace("\\", "/").lower() for a in (allowed_files or [])}
+    # Identical blocks come from generation loops (measured: the same block ten times). Applied
+    # in sequence they compound when REPLACE still contains SEARCH (".title().title()...").
+    unique, seen = [], set()
+    for b in blocks:
+        key = (b.path, b.search, b.replace)
+        if key not in seen:
+            seen.add(key)
+            unique.append(b)
+    if len(unique) < len(blocks):
+        rep.applied.append({"deduplicated_blocks": len(blocks) - len(unique)})
+    blocks = _repair_placeholder_paths(ws, unique, allowed_files or [], rep)
     pending: dict[str, tuple[str, str]] = {}  # rel -> (original, new)
     for b in blocks:
         try:
@@ -139,6 +185,15 @@ def apply_blocks(workspace: str, blocks: list[EditBlock], *, allowed_files: list
         orig, cur = pending.get(rel) or (C._read_text(target)[0],) * 2
         crlf = "\r\n" in cur
         search, replace = b.search, b.replace
+        if not search.strip() and allow_new_files:
+            # Empty SEARCH on an existing file = append. Adding a function is the common case,
+            # and choosing an anchor is where small models fail (measured on two backtest cases).
+            nl = "\r\n" if crlf else "\n"
+            body = replace.replace("\r\n", "\n").strip("\n").replace("\n", nl)
+            sep = "" if not cur else (nl if cur.endswith(nl) else nl + nl) + nl
+            pending[rel] = (orig, cur + sep + body + nl)
+            rep.applied.append({"path": rel, "append": True, "added_lines": body.count(nl) + 1})
+            continue
         if crlf:
             search, replace = search.replace("\r\n", "\n").replace("\n", "\r\n"), replace.replace("\r\n", "\n").replace("\n", "\r\n")
         found = _find_unique(cur, search)
@@ -164,13 +219,18 @@ def apply_blocks(workspace: str, blocks: list[EditBlock], *, allowed_files: list
                                                   fromfile=f"a/{rel}", tofile=f"b/{rel}", n=2)))
         syn = C._quick_syntax(rel, new)
         if syn.get("ok") is False:
+            # Show the model the resulting lines around the error, not just a line number.
+            ln = syn.get("line") or 1
+            lines = new.splitlines()
+            syn["snippet"] = "\n".join(f"{i + 1:>4}| {lines[i]}" for i in range(max(0, ln - 3), min(len(lines), ln + 2)))
             rep.syntax_errors.append({"path": rel, **syn})
     rep.diff = policy.redact("\n".join(diffs))[0][:20000]
     if rep.errors:
         return rep
     if rep.syntax_errors:
         # Never write code that does not parse; the repair loop gets the exact error.
-        rep.errors += [f"{e['path']}:{e.get('line')}: {e.get('error')}" for e in rep.syntax_errors]
+        rep.errors += [f"{e['path']}:{e.get('line')}: {e.get('error')} - the file would become:\n{e.get('snippet', '')}"
+                       for e in rep.syntax_errors]
         return rep
     if not dry_run:
         for rel, (_orig, new) in pending.items():

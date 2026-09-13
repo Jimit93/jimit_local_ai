@@ -72,8 +72,10 @@ def test_fix_bug_full_loop(workspace):
     ev = st["evaluation"]
     assert ev["actual"]["files_changed"] == ["calc.py"] and ev["predicted"]["files_changed"] == ["calc.py"]
     assert ev["checks"]["tests_match"] is True and ev["match_score"] == 1.0
-    # tests were never offered as editable in a bug fix
-    assert "tests/test_calc.py" not in st["data"]["allowed_files"]
+    # tests and non-code files (pytest.ini) are never offered as editable in a bug fix;
+    # the function under test is found from the failing test's body.
+    assert st["data"]["allowed_files"] == ["calc.py"]
+    assert st["data"]["functions_under_test"] == ["calc.py"]
     kinds = [e["kind"] for e in S.events(st["id"])]
     assert {"understand", "plan", "checkpoint", "step_end", "complete"} <= set(kinds)
     assert CP.get(st["last_checkpoint"])["files"][0]["path"] == "calc.py"
@@ -190,6 +192,194 @@ def test_memory_replay_fixes_a_recurring_error_without_the_model(workspace):
     st2 = _run(workspace, "fix the failing test in tests/test_calc.py", llm)
     assert st2["status"] == S.COMPLETED and not llm.calls
     assert any(s["method"] == "memory" for s in st2["plan"])
+
+
+def test_requirements_catch_a_passing_but_wrong_implementation(workspace):
+    # Measured on qwen2.5-coder:3b: asked to add a function, it edited an existing one; the
+    # existing tests still passed. The requirements check must reject that and repair.
+    Path(workspace, "calc.py").write_text(Path(workspace, "calc.py").read_text(encoding="utf-8")
+                                          .replace("return a - b", "return a + b"), encoding="utf-8")
+    wrong = "calc.py\n<<<<<<< SEARCH\n    return a * b\n=======\n    return b * a\n>>>>>>> REPLACE"
+    right = "calc.py\n<<<<<<< SEARCH\n=======\ndef sub(a, b):\n    return a - b\n>>>>>>> REPLACE"
+    llm = Script(wrong, right)
+    st = _run(workspace, "add a function sub(a, b) to calc.py that subtracts b from a", llm)
+    assert st["status"] == S.COMPLETED, st["last_output"]
+    assert st["counters"]["repairs"] == 1 and len(llm.calls) == 2
+    assert "`sub` is not defined" in llm.calls[1]["prompt"]
+    assert "sub(2 parameters)" in llm.calls[0]["prompt"]
+    text = Path(workspace, "calc.py").read_text(encoding="utf-8")
+    assert "def sub(a, b):" in text and "return a * b" in text  # the wrong edit was rolled back
+
+
+MEASURED_BEFORE = '''"""String helpers."""
+import re
+
+
+def slugify(text):
+    """Lower-case, hyphen-separated slug."""
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", text.strip().lower())
+    return text.strip("-")
+'''
+# Exactly what qwen2.5-coder:3b produced three times in the system backtest.
+MEASURED_AFTER = '''"""String helpers."""
+import re
+
+
+def slugify(text):
+    """Lower-case, hyphen-separated slug."""
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", text.strip().lower())
+    return text.strip("-").replace(" ", "").lower()
+
+    def is_palindrome(text):
+        """Check if a string is a palindrome, ignoring case and spaces."""
+        cleaned_text = text.replace(" ", "").lower()
+        return cleaned_text == cleaned_text[::-1]
+'''
+
+
+def test_hoist_and_revert_on_the_measured_model_output():
+    import ast
+
+    hoisted, moved = L._hoist_dead_nested(MEASURED_AFTER, {"is_palindrome"})
+    assert moved == ["is_palindrome"]
+    tree = ast.parse(hoisted)
+    assert [n.name for n in tree.body if isinstance(n, ast.FunctionDef)] == ["slugify", "is_palindrome"]
+    fixed, reverted = L._revert_unrequested(MEASURED_BEFORE, hoisted, "utils/strings.py", {"is_palindrome"})
+    assert reverted == ["slugify"]
+    ns: dict = {}
+    exec(compile(fixed, "strings.py", "exec"), ns)
+    assert ns["slugify"]("Hello, World!") == "hello-world"
+    assert ns["is_palindrome"]("never odd or even") and not ns["is_palindrome"]("python")
+    assert 'return text.strip("-")\n' in fixed
+    # nothing requested -> nothing moved; code before a return is never moved
+    assert L._hoist_dead_nested(MEASURED_AFTER, {"other"})[1] == []
+
+
+def test_nested_or_unrelated_changes_do_not_meet_requirements(workspace):
+    Path(workspace, "calc.py").write_text(Path(workspace, "calc.py").read_text(encoding="utf-8")
+                                          .replace("return a - b", "return a + b"), encoding="utf-8")
+    nested = ("calc.py\n<<<<<<< SEARCH\n    return a * b\n=======\n    return a * b\n\n    def sub(a, b):\n"
+              "        return a - b\n>>>>>>> REPLACE")
+    unrelated = ("calc.py\n<<<<<<< SEARCH\n    return a * b\n=======\n    return b * a\n>>>>>>> REPLACE\n\n"
+                 "calc.py\n<<<<<<< SEARCH\n=======\ndef sub(a, b):\n    return a - b\n>>>>>>> REPLACE")
+    right = "calc.py\n<<<<<<< SEARCH\n=======\ndef sub(a, b):\n    return a - b\n>>>>>>> REPLACE"
+    # Both habits are normalised deterministically, so each completes with a single model call.
+    for edit in (nested, unrelated):
+        make = Path(workspace, "calc.py").read_text(encoding="utf-8")
+        llm = Script(edit)
+        st = _run(workspace, "add a function sub(a, b) to calc.py", llm)
+        assert st["status"] == S.COMPLETED, st["last_output"]
+        assert len(llm.calls) == 1 and any(e["kind"] == "normalize" for e in S.events(st["id"]))
+        text = Path(workspace, "calc.py").read_text(encoding="utf-8")
+        assert "    return a * b" in text and text.count("def sub(") == 1 and "\ndef sub(a, b):" in text.replace("\r\n", "\n")
+        Path(workspace, "calc.py").write_text(make, encoding="utf-8")
+    assert right  # the plain append path is covered by the test above
+
+
+def test_refine_follow_up_continues_the_previous_change(workspace):
+    from backend.agent import memory as MEM
+
+    st = L.run_agent(L.create_task(workspace, "fix the failing test in tests/test_calc.py", session_id="sr",
+                                   options={"allow_edits": True})["id"], llm=Script(FIX))
+    assert st["status"] == S.COMPLETED
+    ref = MEM.refinement_of("sr", "now also make it reject non-numbers", workspace)
+    assert ref and ref["task_id"] == st["id"] and ref["files"][0] == "calc.py" and "return a + b" in ref["diff"]
+    assert MEM.refinement_of("sr", "git status", workspace) is None             # a new command
+    assert MEM.refinement_of("sr", "now open notes/readme.md", workspace) is None  # names another file
+    assert MEM.refinement_of("other-session", "now also do X", workspace) is None
+
+    guard = ("calc.py\n<<<<<<< SEARCH\ndef add(a, b):\n    \"\"\"Return the sum.\"\"\"\n=======\ndef add(a, b):\n"
+             "    \"\"\"Return the sum.\"\"\"\n    if not all(isinstance(v, (int, float)) for v in (a, b)):\n"
+             "        raise TypeError(\"numbers only\")\n>>>>>>> REPLACE")
+    llm = Script(guard)
+    t2 = L.create_task(workspace, "now also make it reject non-numbers", session_id="sr",
+                       options={"allow_edits": True, "refine_of": ref})
+    assert t2["intent"] in ("fix_bug", "implement") and "calc.py" in t2["data"]["intent"]["params"]["files"]
+    assert any(e["kind"] == "refine" for e in S.events(t2["id"]))
+    t2 = L.run_agent(t2["id"], llm=llm)
+    assert t2["status"] == S.COMPLETED, t2["last_output"]
+    assert "refines the previous request" in llm.calls[0]["prompt"] and "Change already made for it" in llm.calls[0]["prompt"]
+    assert 'raise TypeError("numbers only")' in Path(workspace, "calc.py").read_text(encoding="utf-8")
+
+
+def test_functions_under_test_reads_the_failing_test_body(workspace):
+    from backend.agent import project_index as PI
+
+    PI.build(workspace)
+    Path(workspace, "shop.py").write_text("def total(xs):\n    return sum(xs) - 1\n", encoding="utf-8")
+    Path(workspace, "tests/test_shop.py").write_text("from shop import total\n\n\ndef test_total():\n    assert total([1, 2]) == 3\n",
+                                                   encoding="utf-8")
+    PI.build(workspace)
+    got = L.functions_under_test(workspace, [{"nodeid": "tests/test_shop.py::test_total"},
+                                             {"nodeid": "tests/test_calc.py::test_add"}])
+    assert got == ["shop.py", "calc.py"]
+
+
+def test_model_degrades_to_what_fits_in_ram(monkeypatch):
+    from backend.llm import manager as M
+    from backend.llm.base import LLMResult
+
+    models = [{"tier": "small", "name": "big-coder", "size_gb": 1.9, "preferred": True},
+              {"tier": "small", "name": "tiny-coder", "size_gb": 0.4, "preferred": False}]
+    monkeypatch.setattr(M, "code_models", lambda: models)
+
+    def ensure(model, task_id=None):
+        if model["name"] == "big-coder":
+            raise M.InsufficientRAM("big-coder", {"shortfall_gb": 1.2, "end_available_gb": 2.0, "candidates": []})
+        return {"already_loaded": False}
+
+    monkeypatch.setattr(M, "_ensure_ram_for", ensure)
+
+    class FakeAdapter:
+        def __init__(self, name):
+            self.name = name
+
+        def generate(self, prompt, **kw):
+            return LLMResult("ok.", 3, 1, 5.0, self.name, "ollama")
+
+    monkeypatch.setattr("backend.llm.ollama_adapter.QwenOllamaAdapter", FakeAdapter)
+    M._code_adapters.clear()
+    r = M.generate_code("x", tier="small")
+    assert r.model == "tiny-coder" and r.meta["degraded_from"] == "big-coder"
+
+
+def test_general_model_load_checks_ram_first(monkeypatch):
+    from backend.agent import ram as RAM
+    from backend.llm import manager as M
+
+    calls = {}
+    monkeypatch.setattr(M, "is_loaded", lambda: False)
+    monkeypatch.setattr(RAM, "reclaim", lambda need, **kw: calls.setdefault("reclaim", (need, kw)) and {"ok": False})
+    monkeypatch.setattr(RAM, "available_gb", lambda: 0.2)
+    monkeypatch.setattr(M, "llm", lambda force_reload=False: calls.setdefault("reload", force_reload))
+    import pytest as _pt
+
+    with _pt.raises(M.InsufficientRAM):
+        M._ensure_ram_general()
+    assert calls["reclaim"][1]["keep_models"] == {"llama.cpp"} and calls["reclaim"][1]["use_allowlist"] is False
+
+
+def test_placeholder_path_is_retargeted_only_with_a_unique_match(workspace):
+    from backend.agent import edits as E
+
+    ok = "path/to/file.py\n<<<<<<< SEARCH\n    return a * b\n=======\n    return b * a\n>>>>>>> REPLACE"
+    rep = E.apply_blocks(workspace, E.parse_blocks(ok), allowed_files=["calc.py"])
+    assert rep.ok and rep.files_changed == ["calc.py"] and rep.applied[0].get("retargeted_from") == "path/to/file.py"
+    bad = "path/to/file.py\n<<<<<<< SEARCH\nnot in calc\n=======\nx\n>>>>>>> REPLACE"
+    assert not E.apply_blocks(workspace, E.parse_blocks(bad), allowed_files=["calc.py"]).ok
+    two = E.apply_blocks(workspace, E.parse_blocks(ok.replace("b * a", "a * b")), allowed_files=["calc.py", "other.py"])
+    assert not two.ok  # ambiguous target: never guessed
+
+
+def test_secret_and_plural_requests_route_to_the_right_path(workspace):
+    from backend.agent import intents as I
+    from backend.harness.task_classifier import classify_task
+
+    r = I.classify_intent("show me .env")
+    assert r.intent == "read_file" and r.params["files"] == [".env"]
+    assert classify_task("add three functions to utils/strings.py: title_case(text) and count_vowels(text)").result == "coding"
+    st = L.run_agent(L.create_task(workspace, "show me .env", options={})["id"], llm=Script())
+    assert st["status"] == S.FAILED and st["counters"]["llm_calls"] == 0 and "secret" in st["last_output"]
 
 
 # ------------------------------------------------------------- harness integration

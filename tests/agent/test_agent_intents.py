@@ -39,6 +39,8 @@ from backend.agent import intents as I
     ("rename function add to add_numbers", "rename_symbol"),
     ("fix the failing test in tests/test_calc.py", "fix_bug"),
     ("the tests are failing", "fix_bug"),
+    ("line_total returns the wrong sum, fix it", "fix_bug"),
+    ("the export button doesn't work, please fix", "fix_bug"),
     ("why does this raise a KeyError", "analyze_error"),
     ("refactor the planner module", "refactor"),
     ("write unit tests for backend/agent/edits.py", "write_tests"),
@@ -69,6 +71,14 @@ def test_params():
     assert I.extract_params("rename function add to add_numbers")["rename_to"] == "add_numbers"
     assert I.extract_params("find all *.tsx files")["glob"] == "*.tsx"
     assert I.extract_params("delete the file config.json")["files"] == ["config.json"]
+    rc = I.extract_params("add title_case(text), count_vowels(text) and truncate(text, n) to utils/strings.py "
+                          "(it capitalizes each word (like this))")["required_calls"]
+    assert rc == [{"name": "title_case", "arity": 1}, {"name": "count_vowels", "arity": 1}, {"name": "truncate", "arity": 2}]
+    # Found by the system backtest: the name before "folder" was ignored and "." was listed.
+    assert I.extract_params("list the utils folder")["directory"] == "utils"
+    assert I.extract_params("what is in the backend/agent directory")["directory"] == "backend/agent"
+    assert I.extract_params("list files in src")["directory"] == "src"
+    assert "directory" not in I.extract_params("list the current directory")
     assert I.extract_params("open src/App.tsx and api.ts")["files"] == ["src/App.tsx", "api.ts"]
     assert I.extract_params("run tests/agent/test_x.py::test_y")["test_target"] == "tests/agent/test_x.py::test_y"
     assert I.extract_params('Traceback (most recent call last):\n  File "a.py", line 3\nKeyError: 1')["has_traceback"]

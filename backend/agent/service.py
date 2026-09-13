@@ -27,8 +27,14 @@ def submit_request(request: str, *, workspace: str | None = None, session_id: st
             request = followup["previous_request"]
         # rollback_last flows through the normal path: the "undo" intent uses the session.
 
+    from backend.config import SETTINGS
+
+    refine = (MEM.refinement_of(session_id, request, ws)
+              if SETTINGS.agent.refine_continuation and opts.get("allow_edits", True) and not followup else None)
+    if refine:
+        opts["refine_of"] = refine
     cls = classify_task(request)
-    if cls.result in ("workspace", "coding"):
+    if refine or cls.result in ("workspace", "coding"):
         st = L.create_task(ws, request, session_id=session_id, options=opts)
     else:
         st = S.new_task(ws, request, session_id=session_id, intent=f"harness:{cls.result}",
@@ -45,9 +51,9 @@ def submit_request(request: str, *, workspace: str | None = None, session_id: st
                 explanation="One step: the existing routing harness answers it.")
         MEM.session_add(session_id, "user", request, task_id=st["id"])
     worker().submit(st["id"])
-    return {"task_id": st["id"], "session_id": session_id, "category": cls.result,
+    return {"task_id": st["id"], "session_id": session_id, "category": "coding" if refine else cls.result,
             "intent": st.get("intent"), "plan": [{"name": s["name"], "kind": s["kind"]} for s in st["plan"]],
-            "followup": followup}
+            "followup": followup, "refine_of": (refine or {}).get("task_id")}
 
 
 def task_view(task_id: str) -> dict:

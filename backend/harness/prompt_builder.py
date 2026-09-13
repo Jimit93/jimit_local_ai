@@ -33,7 +33,7 @@ SYSTEM_CODER = (
 
 EDIT_FORMAT = """Reply with edit blocks only, one per change, in exactly this format:
 
-path/to/file.py
+{path}
 <<<<<<< SEARCH
 exact lines copied from the current file
 =======
@@ -41,8 +41,9 @@ the new lines
 >>>>>>> REPLACE
 
 Rules: the SEARCH part must match the current file exactly, including indentation, and be
-unique in that file (include a few surrounding lines if needed). To create a new file use an
-empty SEARCH part. No explanations before or after the blocks."""
+unique in that file (include a few surrounding lines if needed). To add new code at the end of a
+file, or to create a new file, leave the SEARCH part empty. Write real code with real line
+breaks, never an escaped string. No explanations before or after the blocks."""
 
 
 def code_edit_prompt(*, request: str, context: str, failure: str = "", constraints: list[str] | None = None,
@@ -58,8 +59,11 @@ def code_edit_prompt(*, request: str, context: str, failure: str = "", constrain
                     "'Verification failure'; do not repeat the same change.")
     cons += constraints or []
     ctx = context + (f"\n\n## Verification failure\n{failure}" if failure else "")
+    # A real file name in the example: small models copy a placeholder path verbatim
+    # (measured: qwen2.5-coder:3b wrote four blocks for "path/to/file.py").
+    example_path = (allowed_files or ["path/to/file.py"])[0]
     return build_prompt(objective="Modify the code to satisfy the request.", task=request, context=ctx,
-                        constraints=cons, output_format=EDIT_FORMAT)
+                        constraints=cons, output_format=EDIT_FORMAT.replace("{path}", example_path))
 
 
 def code_answer_prompt(*, request: str, context: str, max_tokens: int = 600) -> str:
