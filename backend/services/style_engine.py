@@ -316,7 +316,11 @@ def style_instructions(profile: dict | None = None, target_words: tuple[int, int
     paras = max(2, int(L["paragraphs"]["median"]))
     hook = (c.get("preferred_hooks") or ["claim"])[0]
     rules = [
-        f"Length: {lo}-{hi} words.",
+        # The token cap is set just above `hi` words. A small model that runs long gets
+        # cut mid-sentence (a pasted draft stopped on "...these challenges:"), so the
+        # finish is asked for explicitly; linkedin_writer._finish is the guarantee.
+        f"Length: {lo}-{hi} words. Finish your last sentence before that limit - "
+        "never stop mid-sentence.",
         f"Use about {paras} short paragraphs, one or two sentences each.",
         f"Average sentence length around {int(L['avg_sentence_len']['median'])} words; "
         f"never exceed {c['max_sentence_words']}.",

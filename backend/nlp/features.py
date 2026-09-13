@@ -106,6 +106,12 @@ GENERIC_PHRASES = [
     "moving forward", "synergy", "paradigm shift", "low-hanging fruit", "circle back",
     "i'm thrilled to announce that i have", "without further ado", "buckle up",
     "let that sink in", "here's the kicker", "spoiler alert",
+    # Added from a draft returned as SUCCESS. Each appears in 0 of the author's 77
+    # posts, so banning it cannot suppress their own voice. Near-misses the author
+    # DOES use ("game-changing", "streamline", "robust", "landscape") are left out.
+    "thrilled to announce", "unprecedented", "unlocking", "daunting",
+    "with the advent of", "play a crucial role", "countless hours",
+    "valuable insights", "supercharge", "next-level",
 ]
 
 STOPWORDS = {

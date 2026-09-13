@@ -27,7 +27,8 @@ QA evaluation of the LinkedIn writer through the real frontend. See
 | F3 | HARNESS `linkedin_writer` | Repair prompt had no `context=`, so fact issues were unfixable | Repair prompt now carries the facts |
 
 Result: overall 0.6381 -> 0.7914, still one LLM call. Generation is seeded
-(seed 42) so runs are byte-reproducible; the caveat is one brief, not noise.
+(seed 42) but only once at model load: a post is reproducible only as the first call after
+a (re)load. The QA comparison held that condition by restarting the backend per run.
 
 ## Open weaknesses (not fixed, queued)
 

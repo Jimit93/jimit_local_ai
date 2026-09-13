@@ -37,7 +37,32 @@ def validate_numeric(question: str, answer: str) -> dict:
 # present measured evidence, that presents none of it, has not done the job -
 # however well it reads. Without it the post scores 10/11 = 0.91, clears the 0.85
 # SUCCESS bar and the repair pass never runs.
-CRITICAL_CHECKS = ("numbers_grounded", "no_placeholders", "not_copied", "facts_used")
+#
+# `no_generic_phrases` and `complete_ending` joined after a draft full of stock
+# buzzwords that stopped mid-list at a colon came back as SUCCESS: the phrase check
+# had fired, but one failure out of nine still scores 0.889 and clears the bar, so
+# the repair pass never ran. The author's own posts trip the phrase list in 1 of 77,
+# so treating it as critical does not reject their real voice.
+CRITICAL_CHECKS = ("numbers_grounded", "no_placeholders", "not_copied", "facts_used",
+                   "no_generic_phrases", "complete_ending")
+
+# A body line that introduces something (ends with ":") and has real content before
+# the colon. The word floor matters: the author's only colon ending in 77 posts is
+# the one-word label "Hashtags:" before a hashtag line, which is not truncation.
+_HASHTAG_LINE_RE = re.compile(r"^\s*(?:#\w+[\s,]*)+$")
+_DANGLING_INTRO_WORDS = 4
+
+
+def dangling_ending(text: str) -> str | None:
+    """Return the last body line if it ends on an unfulfilled colon, else None."""
+    lines = [ln.strip() for ln in (text or "").strip().splitlines() if ln.strip()]
+    body = [ln for ln in lines if not _HASHTAG_LINE_RE.match(ln)]
+    if not body:
+        return None
+    last = body[-1]
+    if last.endswith(":") and len(re.findall(r"\w+", last)) >= _DANGLING_INTRO_WORDS:
+        return last
+    return None
 
 _NUM_RE = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
 _MARKDOWN_RE = re.compile(r"\*\*|^#{1,6}\s|^\s*\|.*\|\s*$|__[^_]+__", re.M)
@@ -53,6 +78,7 @@ def validate_post(
     examples: list[str] | None = None,
     facts: str | None = None,
     topic: str | None = None,
+    unfinished: bool = False,
 ) -> dict:
     """Score a generated post against the measured style profile.
 
@@ -115,6 +141,16 @@ def validate_post(
     checks["no_markdown"] = not _MARKDOWN_RE.search(text or "")
     if not checks["no_markdown"]:
         issues.append("markdown formatting (LinkedIn renders it literally)")
+
+    dangling = dangling_ending(text)
+    # `unfinished` is set by the writer when the runtime stopped on its token cap and
+    # no complete sentence survived the trim - the text alone cannot show that reliably,
+    # because most of the author's own posts end without terminal punctuation.
+    checks["complete_ending"] = dangling is None and not unfinished
+    if dangling:
+        issues.append(f"post stops mid-thought on a colon: '...{dangling[-60:]}'")
+    elif unfinished:
+        issues.append("post was cut off by the token limit mid-sentence")
 
     if facts is not None and facts.strip():
         allowed = _numbers(facts) | _numbers(topic or "")

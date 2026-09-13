@@ -27,6 +27,144 @@ const PROCESSOR_PATH = [
   "Validator (deterministic QC)",
 ];
 
+const BT_ROWS = [
+  ["pass_rate", "Pass rate (SUCCESS)", "pct"],
+  ["complete_ending_rate", "Complete ending", "pct"],
+  ["hashtag_rate", "Has hashtags", "pct"],
+  ["mean_overall", "Mean overall score", "num"],
+  ["mean_critical_failures", "Mean critical failures", "num"],
+  ["posts_with_banned_phrases", "Posts with banned phrases", "int"],
+  ["mean_llm_calls", "Mean model calls", "num"],
+  ["mean_tokens", "Mean tokens", "int"],
+  ["mean_latency_ms", "Mean latency", "ms"],
+] as const;
+
+function fmtBt(v: any, kind: string) {
+  if (v === undefined || v === null) return "—";
+  if (kind === "pct") return `${Math.round(v * 100)}%`;
+  if (kind === "ms") return `${(v / 1000).toFixed(1)}s`;
+  if (kind === "int") return String(Math.round(v));
+  return Number(v).toFixed(3);
+}
+
+function RefineBacktestCard() {
+  const [bt, setBt] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    api.refineBacktestLatest().then(setBt).catch(() => setBt(null));
+  }, []);
+
+  async function run() {
+    setBusy(true);
+    setErr("");
+    try {
+      setBt(await api.refineBacktest({}));
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const a = bt?.aggregate?.one_shot || {};
+  const d = bt?.aggregate?.refine_draft || {};
+  const r = bt?.aggregate?.refine || {};
+  const curveRows = (bt?.iteration_curve || []).map((v: number, i: number) => ({
+    run_id: `i${i}`, overall_score: v,
+  }));
+
+  return (
+    <Card title="Refine loop backtest — Describe → Generate → Test → Refine">
+      <div className="btn-row">
+        <button className="btn" disabled={busy} onClick={run}>Run backtest</button>
+        {busy && <Spinner label="one-shot vs refine on every brief — several minutes on CPU…" />}
+      </div>
+      {err && <div style={{ marginTop: 10 }}><Err>{err}</Err></div>}
+      {!bt && !busy && (
+        <p className="muted" style={{ marginTop: 10 }}>No backtest yet. It compares the normal
+          one-shot writer against the refine loop on fixed briefs, same seeded model.</p>
+      )}
+      {bt && (
+        <>
+          <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+            Run <span className="mono">{bt.run_id}</span> · {bt.model} · seed {bt.seed} ·{" "}
+            {bt.n_briefs} briefs · {bt.duration_s}s · up to {bt.settings.max_iterations} micro-iterations,{" "}
+            {bt.settings.max_llm_fixes} model fixes
+          </p>
+          <div className="grid-2">
+            <div className="scroll-x">
+              <table>
+                <thead><tr><th>Metric</th><th>One-shot</th><th>Refine draft</th><th>Refine loop</th></tr></thead>
+                <tbody>
+                  {BT_ROWS.map(([k, label, kind]) => (
+                    <tr key={k}>
+                      <td>{label}</td>
+                      <td className="mono">{fmtBt(a[k], kind)}</td>
+                      <td className="mono">{fmtBt(d[k], kind)}</td>
+                      <td className="mono">{fmtBt(r[k], kind)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                Refine draft → Refine loop is paired (same draft, before and after fixes). One-shot is a
+                different sample: the seed is set once when the model loads.
+              </p>
+            </div>
+            <div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+                Mean score by micro-iteration — last one that still helped:{" "}
+                <strong>{bt.last_improving_iteration}</strong> of {bt.settings.max_iterations} allowed
+              </div>
+              <IterationLine rows={curveRows} />
+            </div>
+          </div>
+          {bt.reviewer_findings?.length ? (
+            <div style={{ marginTop: 12 }}>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+                What the checks could not see — read from the generated text
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6 }}>
+                {bt.reviewer_findings.map((f: string) => <li key={f}>{f}</li>)}
+              </ul>
+            </div>
+          ) : null}
+          <div className="scroll-x" style={{ marginTop: 12 }}>
+            <table>
+              <thead>
+                <tr><th>Brief</th><th>One-shot</th><th>Refine loop</th><th>Stopped</th></tr>
+              </thead>
+              <tbody>
+                {(bt.rows || []).map((row: any) => row.error ? (
+                  <tr key={row.id}><td className="mono">{row.id}</td><td colSpan={3}>{row.error}</td></tr>
+                ) : (
+                  <tr key={row.id}>
+                    <td className="mono" style={{ fontSize: 12 }}>{row.id}</td>
+                    <td style={{ fontSize: 12 }}>
+                      {row.one_shot.status} · {row.one_shot.overall.toFixed(3)} · {row.one_shot.llm_calls} calls
+                      {row.one_shot.critical_failures.length > 0 &&
+                        <div className="muted">{row.one_shot.critical_failures.join(", ")}</div>}
+                    </td>
+                    <td style={{ fontSize: 12 }}>
+                      {row.refine.status} · {row.refine.overall.toFixed(3)} · {row.refine.llm_calls} calls ·{" "}
+                      {row.refine.iterations} iters
+                      {row.refine.critical_failures.length > 0 &&
+                        <div className="muted">{row.refine.critical_failures.join(", ")}</div>}
+                    </td>
+                    <td className="mono" style={{ fontSize: 11.5 }}>{row.refine.stopped_because}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
 export default function Evaluation() {
   const [rep, setRep] = useState<any>(null);
   const [error, setError] = useState("");
@@ -218,6 +356,8 @@ export default function Evaluation() {
           </Card>
         </>
       )}
+
+      <RefineBacktestCard />
     </>
   );
 }

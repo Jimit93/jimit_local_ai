@@ -183,10 +183,12 @@
   "determinism": {
     "seeded": true,
     "seed": 42,
-    "note": "llamacpp_adapter passes SETTINGS.llm.seed (42) to the model, so an identical prompt yields identical output. Verified empirically: a repeat run of iteration 3 through the frontend returned byte-identical text (993 tokens, same 3 numbers cited). Iterations 1 and 2 also share output, as expected - iteration 2 changed only the validator, not the prompt."
+    "note": "llamacpp_adapter passes SETTINGS.llm.seed (42) to the model constructor, so the seed is applied once at load and each later call advances the random state. The repeat run of iteration 3 was byte-identical because both runs were the first call after a backend restart. Every iteration in this comparison was run the same way, so the comparison is controlled; outside that setup identical prompts do not give identical posts.",
+    "seed_applied": "once, at model load",
+    "correction_2026_09_13": "Earlier text said these scores carry no sampling noise in general. That was wrong; it holds only for the first call after a model load."
   },
   "caveats": [
-    "n=1 BRIEF, not n=1 sample. Generation is seeded and reproducible, so these scores carry no sampling noise - but every number here comes from one topic, one audience and one fact set. Nothing in this comparison establishes that the fixes generalise to other briefs.",
+    "n=1 BRIEF. Each post was the first generation after a fresh model load, which is what makes the runs comparable - the seed is applied once at load, not per call. Every number comes from one topic, one audience and one fact set; nothing here shows the fixes generalise.",
     "The two large moves (audience 0.1333->0.7333, factual 0.50->1.00) are driven by deterministic checks that are also covered by 43 unit tests, so they are not artefacts of a single generation.",
     "The small moves are NOT improvements and should not be read as such: style 0.8487->0.8487 and structure 0.8333->0.8333 are unchanged, while technical 0.80->0.7333 and audience's shortfall from 1.0 are real, unaddressed losses in this sample.",
     "content_score is stuck at 0.5 across all four runs - it measures keyword coverage against a 12-term expectation and was not a target of any fix.",

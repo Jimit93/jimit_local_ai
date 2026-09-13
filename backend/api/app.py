@@ -81,6 +81,10 @@ from backend.api.agent_routes import router as agent_router  # noqa: E402 - afte
 
 app.include_router(agent_router)
 
+from backend.api.writer_routes import router as writer_refine_router  # noqa: E402
+
+app.include_router(writer_refine_router)
+
 # ------------------------------------------------------------------ models
 
 class TaskIn(BaseModel):

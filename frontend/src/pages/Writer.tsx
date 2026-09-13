@@ -43,8 +43,15 @@ export default function Writer() {
     }
   }
 
-  const generate = () =>
-    call(() => api.generate({ topic, audience, pillar, length, cta, facts }));
+  const [refining, setRefining] = useState(false);
+  const generate = () => {
+    setRefining(false);
+    return call(() => api.generate({ topic, audience, pillar, length, cta, facts }));
+  };
+  const refineRun = () => {
+    setRefining(true);
+    return call(() => api.refine({ topic, audience, pillar, length, cta, facts }));
+  };
   const improve = () =>
     call(() =>
       api.improve({ previous: res?.text || "", instruction: instruction || "tighten it", topic, length }),
@@ -120,8 +127,14 @@ export default function Writer() {
             <button className="btn ghost" disabled={busy || !res} onClick={generate}>
               Regenerate
             </button>
+            <button className="btn ghost" disabled={busy || topic.trim().length < 3} onClick={refineRun}
+              title="Describe → Generate → Test → Refine: one draft, then small checked fixes">
+              Refine loop
+            </button>
           </div>
-          {busy && <div style={{ marginTop: 12 }}><Spinner label="one local model call…" /></div>}
+          {busy && <div style={{ marginTop: 12 }}>
+            <Spinner label={refining ? "draft, then checked micro-fixes…" : "one local model call…"} />
+          </div>}
           {error && <div style={{ marginTop: 12 }}><Err>{error}</Err></div>}
         </Card>
 
@@ -165,6 +178,53 @@ export default function Writer() {
                 <p className="muted" style={{ fontSize: 12.5, marginTop: 12 }}>
                   All style checks passed{res.metrics.repaired ? " (after one repair call)" : ""}.
                 </p>
+              )}
+
+              {res.hashtags?.length ? (
+                <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+                  Hashtags built from the audience: <span className="mono">{res.hashtags.join(" ")}</span>
+                </p>
+              ) : null}
+
+              {res.refine && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                    Refine loop — {res.refine.iterations} micro-iteration
+                    {res.refine.iterations === 1 ? "" : "s"}, {res.refine.accepted_steps} accepted,{" "}
+                    {res.refine.llm_fixes_used}/{res.refine.max_llm_fixes} model fixes · stopped:{" "}
+                    <span className="mono">{res.refine.stopped_because}</span>
+                  </div>
+                  <div style={{ fontSize: 12.5, marginBottom: 8 }}>
+                    First draft <StatusPill status={res.refine.initial.status} />{" "}
+                    <span className="mono">{res.refine.initial.overall.toFixed(3)}</span>
+                    {" → "}final <StatusPill status={res.refine.final.status} />{" "}
+                    <span className="mono">{res.refine.final.overall.toFixed(3)}</span>
+                  </div>
+                  <div className="scroll-x">
+                    <table>
+                      <thead>
+                        <tr><th>#</th><th>Check</th><th>Fix</th><th>Cost</th><th>Result</th><th>Score</th></tr>
+                      </thead>
+                      <tbody>
+                        {res.refine.trace.map((t) => (
+                          <tr key={t.iteration}>
+                            <td className="mono">{t.iteration}</td>
+                            <td className="mono" style={{ fontSize: 11.5 }}>{t.check ?? "—"}</td>
+                            <td style={{ fontSize: 12 }}>
+                              <span className="mono">{t.fixer}</span>
+                              <div className="muted" style={{ fontSize: 11.5 }}>{t.note}</div>
+                            </td>
+                            <td style={{ fontSize: 12 }}>{t.kind === "llm" ? "model" : "free"}</td>
+                            <td>{t.accepted
+                              ? <span className="pill ok">kept</span>
+                              : <span className="pill bad">rolled back</span>}</td>
+                            <td className="mono">{t.overall.toFixed(3)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
 
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>

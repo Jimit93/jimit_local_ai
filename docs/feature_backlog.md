@@ -64,6 +64,33 @@ Classification: value / implementation type / regression risk.
 
 ---
 
+### Marketing-register copy passes every check
+- **Description**: a refine-loop run through the UI returned SUCCESS 1.0 on a post
+  containing "Our AI agent is the perfect solution for you", "freeing up valuable
+  time" and "takes your team off the clock". None is on the banned list, and the
+  author writes as "I", not "our".
+- **Why it matters**: extending the phrase list one draft at a time is whack-a-mole.
+- **Better fix**: an NLP register feature — second-person sales framing ("are you a
+  … looking to", "perfect solution for you"), superlatives, first-person-plural
+  company voice — measured against the 77 posts for a false-positive rate first,
+  exactly as the phrase additions were.
+- **Class**: HIGH VALUE / NLP / low risk · **Status**: BACKLOG
+
+### Two truncation trims now exist
+- **Description**: the coding-agent session added `backend/harness/completion.py`
+  (`finish` / `trim_prose`), which `LLM.generate` now runs on every call. The writer
+  has its own `linkedin_writer._finish`. They overlap but are not interchangeable:
+  `trim_prose` counts a colon before a newline as a finished sentence and appends
+  "…" when nothing complete is left - both wrong for a LinkedIn post (the exact
+  failure in the pasted draft) - and it does not preserve a trailing hashtag line.
+- **Why it matters**: two trims on one path is how a future edit to one silently
+  breaks the other. Today the writer tolerates the runtime trim (a capped reply
+  ending in "…" is treated as unfinished; covered by a regression test).
+- **Action once `completion.py` is committed**: give `trim_prose` a post mode (no
+  colon-as-ending, no ellipsis, keep hashtag tail) and delete `_finish`.
+- **Class**: USEFUL / DETERMINISTIC / low risk · **Status**: BACKLOG — not touched
+  now because the file is uncommitted work in another session.
+
 ## MEDIUM PRIORITY
 
 ### No retrieval-quality evaluation

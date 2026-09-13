@@ -116,10 +116,17 @@ corpus, or unrelated UI.
 
 ## DETERMINISM
 
-Generation is seeded (`SETTINGS.llm.seed = 42`, passed to llama.cpp). A repeat run
-of iteration 3 through the frontend returned **byte-identical** output. These
-scores therefore carry no sampling noise — but they describe **one brief**. Nothing
-here establishes that the fixes generalise to other topics.
+Generation is seeded (`SETTINGS.llm.seed = 42`), but the seed is applied **once, when
+the model loads** — every later call advances the random state. A repeat run of
+iteration 3 returned byte-identical output because both runs were the first call after
+a backend restart.
+
+*Correction (2026-09-13):* an earlier version of this section said the scores "carry no
+sampling noise". That is only true at the same call position after load. The
+comparisons in this report remain controlled, because the backend was restarted before
+every iteration run, so each post was the first generation on a fresh model. Outside
+that setup, identical prompts do not produce identical posts. Separately, the numbers
+describe **one brief**; nothing here establishes that the fixes generalise to other topics.
 
 ## CONCLUSION
 

@@ -68,7 +68,39 @@ export interface WriterResult {
     model: string;
     repaired: boolean;
     source_count: number;
+    truncated?: boolean;
   };
+  hashtags?: string[];
+  refine?: RefineInfo;
+}
+
+export interface RefineStep {
+  iteration: number;
+  stage: "generate" | "refine";
+  check: string | null;
+  fixer: string;
+  kind: "deterministic" | "llm";
+  accepted: boolean;
+  note: string;
+  status: string;
+  style_match: number;
+  overall: number;
+  issues: string[];
+  llm_calls: number;
+}
+
+export interface RefineInfo {
+  stages: string[];
+  iterations: number;
+  max_iterations: number;
+  llm_fixes_used: number;
+  max_llm_fixes: number;
+  accepted_steps: number;
+  stopped_because: string;
+  initial: { status: string; style_match: number; overall: number; issues: string[] };
+  final: { status: string; style_match: number; overall: number; issues: string[] };
+  score_curve: number[];
+  trace: RefineStep[];
 }
 
 export interface Hit {
@@ -92,6 +124,9 @@ export const api = {
     post<TaskResult>("/task", { task, mode, options }),
   generate: (body: Record<string, unknown>) => post<WriterResult>("/writer/generate", body),
   improve: (body: Record<string, unknown>) => post<WriterResult>("/writer/improve", body),
+  refine: (body: Record<string, unknown>) => post<WriterResult>("/writer/refine", body),
+  refineBacktest: (body: Record<string, unknown> = {}) => post<any>("/writer/refine-backtest", body),
+  refineBacktestLatest: () => req<any>("/writer/refine-backtest/latest"),
   knowledge: () => req<any>("/knowledge/stats"),
   search: (body: Record<string, unknown>) =>
     post<{ hits: Hit[]; count: number; latency_ms: number; mode: string }>(

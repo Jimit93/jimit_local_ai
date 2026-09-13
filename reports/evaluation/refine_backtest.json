@@ -1,0 +1,654 @@
+{
+  "run_id": "a3edbfd371",
+  "started_at": 1789293929.981574,
+  "duration_s": 294.3,
+  "model": "qwen1_5-1_8b-chat-q4_k_m.gguf",
+  "seed": 42,
+  "settings": {
+    "max_iterations": 20,
+    "max_llm_fixes": 3
+  },
+  "n_briefs": 5,
+  "aggregate": {
+    "one_shot": {
+      "pass_rate": 0.2,
+      "complete_ending_rate": 1.0,
+      "hashtag_rate": 1.0,
+      "mean_overall": 0.7316,
+      "mean_style_match": 0.9133,
+      "mean_critical_failures": 1,
+      "posts_with_banned_phrases": 3,
+      "mean_llm_calls": 1.8,
+      "mean_tokens": 1529.8,
+      "mean_latency_ms": 37064.1,
+      "total_llm_calls": 9
+    },
+    "refine_draft": {
+      "pass_rate": 0.0,
+      "mean_overall": 0.7148,
+      "mean_style_match": 0.8467
+    },
+    "refine": {
+      "pass_rate": 1.0,
+      "complete_ending_rate": 1.0,
+      "hashtag_rate": 1.0,
+      "mean_overall": 0.8515,
+      "mean_style_match": 0.9833,
+      "mean_critical_failures": 0,
+      "posts_with_banned_phrases": 0,
+      "mean_llm_calls": 1,
+      "mean_tokens": 982.4,
+      "mean_latency_ms": 21755.9,
+      "total_llm_calls": 5
+    }
+  },
+  "iteration_curve": [
+    0.7148,
+    0.7779,
+    0.8035,
+    0.8515
+  ],
+  "iteration_gains": [
+    0.0631,
+    0.0256,
+    0.048
+  ],
+  "last_improving_iteration": 3,
+  "max_iterations_used": 3,
+  "rows": [
+    {
+      "id": "harness_proof",
+      "brief": {
+        "topic": "How I built a fully local AI agent that runs on a CPU-only laptop: a routing harness that sends every task to the cheapest processor that can answer it reliably, so the language model is the last resort instead of the default.",
+        "audience": "AI engineering hiring managers and companies that want AI automation built",
+        "pillar": "engineering depth, proof",
+        "facts": "Measured on one benchmark run of 23 tasks, LLM-only baseline vs the routing harness on the same machine: LLM calls 23 to 4 (-82.6%). Tokens 8364 to 2214 (-73.5%). Total latency 283.8s to 48.4s (-83.0%). Accuracy 39.1% to 100%. 19 of the 23 tasks were answered with no LLM call at all.",
+        "facts_source": "reports/benchmark_report.md, run b79f795399"
+      },
+      "one_shot": {
+        "status": "PARTIAL_SUCCESS",
+        "passed": false,
+        "style_match": 0.9167,
+        "overall": 0.6057,
+        "critical_failures": [
+          "facts_used"
+        ],
+        "failed_checks": [
+          "facts_used"
+        ],
+        "issues": [
+          "supplied evidence unused: 0 of 12 measured numbers appear, cite at least 2"
+        ],
+        "complete_ending": true,
+        "banned_phrases": [],
+        "hashtags": [
+          "#AIAutomation",
+          "#AIEngineering",
+          "#EngineeringHiring",
+          "#HiringManagers",
+          "#AI"
+        ],
+        "words": 166,
+        "llm_calls": 2,
+        "tokens": 1937,
+        "latency_ms": 40083.5,
+        "truncated_first_draft": true,
+        "text": "Objectives\n\n* Explain the business problem of a company dealing with manual operations, inefficient Excel, emails, reports, invoices, or repetitive tasks.\n* Discuss how an AI business accountant built an AI agent that runs entirely locally and offline, with features such as automated accounting and invoicing, real-time inventory sync, and a focus on data privacy and offline capabilities.\n* Provide measured facts, such as the performance of a benchmark run and the accuracy and response time of the AI agent, to demonstrate the effectiveness of the solution.\n\nContext\n\nBusinesses today often face challenges that hinder their ability to fully harness the benefits of AI, such as manual operations, inefficient Excel and email systems, repetitive tasks, and a lack of cloud infrastructure. These issues can lead to high costs, increased time spent on manual tasks, and potential errors in data processing. An AI business accountant aims to address these challenges by building a solution that is tailored to the specific needs of an organization.\n\n#AIAutomation #AIEngineering #EngineeringHiring #HiringManagers #AI",
+        "repaired": false
+      },
+      "refine": {
+        "status": "SUCCESS",
+        "passed": true,
+        "style_match": 1.0,
+        "overall": 0.8193,
+        "critical_failures": [],
+        "failed_checks": [],
+        "issues": [],
+        "complete_ending": true,
+        "banned_phrases": [],
+        "hashtags": [
+          "#AIAutomation",
+          "#AIEngineering",
+          "#EngineeringHiring",
+          "#HiringManagers",
+          "#AI"
+        ],
+        "words": 163,
+        "llm_calls": 1,
+        "tokens": 1169,
+        "latency_ms": 26537.6,
+        "truncated_first_draft": true,
+        "text": "Are you a CEO dealing with manual operations and struggling to keep up with the demands of an ever-evolving digital landscape? If so, you're not alone. Many businesses today face the challenge of how to leverage AI to improve efficiency and reduce operational costs. One solution that has gained traction in recent years is the use of low-performance AI agents, specifically those designed to run entirely locally and offline. One such example is the AI Business Accountant I built, which is designed to run on a single CPU-optimized laptop. Automated Accounting and Invoicing: The AI Business Accountant is built to extract, process, and match receipts and invoices with zero manual data entry. This eliminates the need for human intervention, freeing up time and resources for other critical business functions.\n\nMeasured on one benchmark run of 23 tasks, LLM-only baseline vs the routing harness on the same machine: LLM calls 23 to 4 (-82.6%).\n\n#AIAutomation #AIEngineering #EngineeringHiring #HiringManagers #AI",
+        "iterations": 3,
+        "accepted_steps": 3,
+        "llm_fixes_used": 0,
+        "stopped_because": "passed",
+        "initial": {
+          "status": "FAILURE",
+          "style_match": 0.6667,
+          "overall": 0.5019,
+          "issues": [
+            "length 174w outside 25-169w",
+            "generic phrases: leverage the power",
+            "numbers not present in the supplied facts: 1, 2",
+            "supplied evidence unused: 0 of 12 measured numbers appear, cite at least 2"
+          ]
+        },
+        "score_curve": [
+          0.5019,
+          0.5821,
+          0.5796,
+          0.8193
+        ],
+        "trace": [
+          {
+            "iteration": 0,
+            "check": null,
+            "fixer": "qwen (one call)",
+            "kind": "llm",
+            "accepted": true,
+            "status": "FAILURE",
+            "overall": 0.5019,
+            "note": "first draft"
+          },
+          {
+            "iteration": 1,
+            "check": "numbers_grounded",
+            "fixer": "drop_unsupported_numbers",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "FAILURE",
+            "overall": 0.5821,
+            "note": "dropped 2 sentence(s) with unsupported numbers"
+          },
+          {
+            "iteration": 2,
+            "check": "no_generic_phrases",
+            "fixer": "drop_hype_sentence",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "PARTIAL_SUCCESS",
+            "overall": 0.5796,
+            "note": "dropped: 'These agents leverage the power of a single CPU-optimized processor to'"
+          },
+          {
+            "iteration": 3,
+            "check": "facts_used",
+            "fixer": "quote_fact",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "SUCCESS",
+            "overall": 0.8193,
+            "note": "added a measured fact verbatim: 'Measured on one benchmark run of 23 tasks, LLM-only baseline vs the ro'"
+          }
+        ]
+      }
+    },
+    {
+      "id": "business_automation_no_facts",
+      "brief": {
+        "topic": "An AI agent that takes over manual business work - Excel sheets, emails, reports and invoices - so the team can focus on decisions.",
+        "audience": "CEOs and small business owners",
+        "pillar": "practical AI",
+        "facts": "",
+        "facts_source": "none - mirrors the draft that was returned as SUCCESS"
+      },
+      "one_shot": {
+        "status": "PARTIAL_SUCCESS",
+        "passed": false,
+        "style_match": 0.9,
+        "overall": 0.7693,
+        "critical_failures": [
+          "no_generic_phrases"
+        ],
+        "failed_checks": [
+          "no_generic_phrases"
+        ],
+        "issues": [
+          "generic phrases: with the advent of"
+        ],
+        "complete_ending": true,
+        "banned_phrases": [
+          "with the advent of"
+        ],
+        "hashtags": [
+          "#BusinessOwners",
+          "#SmallBusiness",
+          "#CEOs"
+        ],
+        "words": 153,
+        "llm_calls": 2,
+        "tokens": 1574,
+        "latency_ms": 36640.7,
+        "truncated_first_draft": true,
+        "text": "\"Say hello to the future of business automation with the advent of AI. As a CEO, you know that manual processes can be time-consuming, error-prone, and often lead to lost productivity. However, with the help of an AI agent, you can streamline your workflows, free up valuable time, and focus on making strategic decisions. Imagine a team of dedicated individuals, each responsible for managing various aspects of a business. They might spend hours staring at spreadsheets, deciphering email chains, and processing invoices. This could be incredibly monotonous and frustrating, leaving them with limited time to innovate, strategize, and drive growth. Enter the AI Business Accountant. This AI agent is designed to automate these manual tasks, eliminating the need for manual data entry and reducing the risk of errors. With its powerful capabilities, the AI Business Accountant can extract, process, and match receipts and invoices with a simple click.\n\n#BusinessOwners #SmallBusiness #CEOs",
+        "repaired": true
+      },
+      "refine": {
+        "status": "SUCCESS",
+        "passed": true,
+        "style_match": 1.0,
+        "overall": 0.7642,
+        "critical_failures": [],
+        "failed_checks": [],
+        "issues": [],
+        "complete_ending": true,
+        "banned_phrases": [],
+        "hashtags": [
+          "#BusinessOwners",
+          "#SmallBusiness",
+          "#CEOs"
+        ],
+        "words": 111,
+        "llm_calls": 1,
+        "tokens": 971,
+        "latency_ms": 23343.5,
+        "truncated_first_draft": true,
+        "text": "With the rise of artificial intelligence (AI), the future of business automation is here, and it's changing the way we approach these tedious tasks. The AI Business Accountant, designed by our team, is a practical tool that streamlines and automates the accounting and invoicing process. With its fully offline capabilities, this AI can handle real-time updates and automatically extracts, processes, and matches receipts and invoices with zero manual data entry. By doing so, it eliminates the need for employees to spend hours on manual tasks and frees up valuable time for decision-making. But this AI isn't just about efficiency. It also prioritizes data privacy and security.\n\n#BusinessOwners #SmallBusiness #CEOs",
+        "iterations": 2,
+        "accepted_steps": 2,
+        "llm_fixes_used": 0,
+        "stopped_because": "passed",
+        "initial": {
+          "status": "PARTIAL_SUCCESS",
+          "style_match": 0.9,
+          "overall": 0.8502,
+          "issues": [
+            "generic phrases: game-changer, delve into"
+          ]
+        },
+        "score_curve": [
+          0.8502,
+          0.847,
+          0.7642
+        ],
+        "trace": [
+          {
+            "iteration": 0,
+            "check": null,
+            "fixer": "qwen (one call)",
+            "kind": "llm",
+            "accepted": true,
+            "status": "PARTIAL_SUCCESS",
+            "overall": 0.8502,
+            "note": "first draft"
+          },
+          {
+            "iteration": 1,
+            "check": "no_generic_phrases",
+            "fixer": "drop_hype_sentence",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "PARTIAL_SUCCESS",
+            "overall": 0.847,
+            "note": "dropped: 'The Future of Business Automation: A Game-Changer for CEOs and Small B'"
+          },
+          {
+            "iteration": 2,
+            "check": "no_generic_phrases",
+            "fixer": "drop_hype_sentence",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "SUCCESS",
+            "overall": 0.7642,
+            "note": "dropped: 'In this post, we'll delve into an AI agent that takes over manual busi'"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cpu_inference",
+      "brief": {
+        "topic": "Running quantized language models fully offline on a CPU-only laptop.",
+        "audience": "AI engineers and ML developers",
+        "pillar": "engineering depth",
+        "facts": "Measured on this machine, CPU only, no GPU: Qwen1.5-1.8B-chat Q4_K_M runs at about 14.7 tokens per second. Qwen2.5-7B-instruct Q4_0 runs at about 5.4 tokens per second.",
+        "facts_source": "CLAUDE.md, Known constraints on this machine"
+      },
+      "one_shot": {
+        "status": "SUCCESS",
+        "passed": true,
+        "style_match": 1.0,
+        "overall": 0.8106,
+        "critical_failures": [],
+        "failed_checks": [],
+        "issues": [],
+        "complete_ending": true,
+        "banned_phrases": [],
+        "hashtags": [
+          "#AIEngineers",
+          "#MLDevelopers",
+          "#AI",
+          "#GenerativeAI",
+          "#MachineLearning"
+        ],
+        "words": 166,
+        "llm_calls": 1,
+        "tokens": 1056,
+        "latency_ms": 26215.0,
+        "truncated_first_draft": true,
+        "text": "Quantized Language Models: Running Fully Offline on a CPU-Only Laptop\r\n\nAs an AI engineer and quant developer at IIT Madras, I have been exploring the potential of quantized language models (QLMs) for fully offline running on a CPU-Only laptop. This groundbreaking achievement not only showcases the capabilities of QLMs but also highlights the importance of efficient hardware design and optimization for high-performance computing tasks.\r\n\nThe recent release of Qwen1.5-1.8B-chat, a state-of-the-art QLM built using the open-source library Qwen, demonstrates the remarkable performance gains made possible through the use of quantization techniques. According to our measurements, Qwen1.5-1.8B-chat Q4_K_M runs at approximately 14.7 tokens per second, while Qwen2.5-7B-instruct Q4_0 boasts a similar performance of 5.4 tokens per second. These numbers are truly remarkable, as they represent a significant improvement in processing speed over traditional QLMs that rely on GPU acceleration.\n\n#AIEngineers #MLDevelopers #AI #GenerativeAI #MachineLearning",
+        "repaired": false
+      },
+      "refine": {
+        "status": "SUCCESS",
+        "passed": true,
+        "style_match": 1.0,
+        "overall": 0.8001,
+        "critical_failures": [],
+        "failed_checks": [],
+        "issues": [],
+        "complete_ending": true,
+        "banned_phrases": [],
+        "hashtags": [
+          "#AIEngineers",
+          "#MLDevelopers",
+          "#AI",
+          "#GenerativeAI",
+          "#MachineLearning"
+        ],
+        "words": 150,
+        "llm_calls": 1,
+        "tokens": 1056,
+        "latency_ms": 15435.4,
+        "truncated_first_draft": true,
+        "text": "Running quantized language models fully offline on a CPU-Only Laptop: An Engineer's Vision\n\nFor the past year, my workspace has been a laboratory for Agentic AI, backed by the academic rigor of my recently completed Advanced Generative AI Master's program from IIT Madras. My primary focus has been on the engineering behind autonomous systems, specifically in the realm of quantized language models (QLMs) that operate offline on a CPU-Only laptop.\n\nInstead of working with traditional software, I have been exclusively dedicated to building multi-agent architectures that can analyze environments, manage risk, and execute logic without human intervention. With QLMs, we can create models that are optimized for real-world applications, such as chatbots, voice assistants, and content generation.\n\nMeasured on this machine, CPU only, no GPU: Qwen1.5-1.8B-chat Q4_K_M runs at about 14.7 tokens per second.\n\n#AIEngineers #MLDevelopers #AI #GenerativeAI #MachineLearning",
+        "iterations": 2,
+        "accepted_steps": 2,
+        "llm_fixes_used": 0,
+        "stopped_because": "passed",
+        "initial": {
+          "status": "FAILURE",
+          "style_match": 0.8333,
+          "overall": 0.5872,
+          "issues": [
+            "generic phrases: leverage the power",
+            "supplied evidence unused: 0 of 4 measured numbers appear, cite at least 2"
+          ]
+        },
+        "score_curve": [
+          0.5872,
+          0.6139,
+          0.8001
+        ],
+        "trace": [
+          {
+            "iteration": 0,
+            "check": null,
+            "fixer": "qwen (one call)",
+            "kind": "llm",
+            "accepted": true,
+            "status": "FAILURE",
+            "overall": 0.5872,
+            "note": "first draft"
+          },
+          {
+            "iteration": 1,
+            "check": "no_generic_phrases",
+            "fixer": "drop_hype_sentence",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "PARTIAL_SUCCESS",
+            "overall": 0.6139,
+            "note": "dropped: 'This approach is crucial for businesses looking to leverage the power '"
+          },
+          {
+            "iteration": 2,
+            "check": "facts_used",
+            "fixer": "quote_fact",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "SUCCESS",
+            "overall": 0.8001,
+            "note": "added a measured fact verbatim: 'Measured on this machine, CPU only, no GPU: Qwen1.5-1.8B-chat Q4_K_M r'"
+          }
+        ]
+      }
+    },
+    {
+      "id": "deterministic_validator",
+      "brief": {
+        "topic": "Why I check AI-generated LinkedIn posts with deterministic rules instead of asking a second LLM to judge them.",
+        "audience": "ML engineers and AI product teams",
+        "pillar": "engineering depth",
+        "facts": "A post that cited 0 of 18 supplied measured numbers scored 100% on the old validator. After a deterministic facts_used check was added, the same writer cited 3 numbers on its first call, still using 1 LLM call.",
+        "facts_source": "reports/evaluation/evaluation_report.md"
+      },
+      "one_shot": {
+        "status": "FAILURE",
+        "passed": false,
+        "style_match": 0.8333,
+        "overall": 0.6112,
+        "critical_failures": [
+          "no_generic_phrases",
+          "facts_used"
+        ],
+        "failed_checks": [
+          "no_generic_phrases",
+          "facts_used"
+        ],
+        "issues": [
+          "generic phrases: valuable insights",
+          "supplied evidence unused: 0 of 5 measured numbers appear, cite at least 2"
+        ],
+        "complete_ending": true,
+        "banned_phrases": [
+          "valuable insights"
+        ],
+        "hashtags": [
+          "#AIProduct",
+          "#MLEngineers",
+          "#ProductTeams",
+          "#AI",
+          "#GenerativeAI"
+        ],
+        "words": 150,
+        "llm_calls": 2,
+        "tokens": 1490,
+        "latency_ms": 41511.4,
+        "truncated_first_draft": true,
+        "text": "In the realm of artificial intelligence (AI), the debate surrounding the significance of human judgment in evaluating the quality of AI-generated content has gained traction. As AI continues to play a pivotal role in enhancing the efficiency and accuracy of content creation, the question arises: Can AI truly provide valuable insights and recommendations without relying solely on automated algorithms, potentially leading to biased or unreliable outputs?\n\nTo address this concern, the concept of deterministic rules is crucial. When evaluating LinkedIn posts, engineers and AI product teams are turning to AI-generated content to streamline their workflow and improve the quality of their content. While this approach can be an efficient method for generating a substantial volume of posts, it's essential to carefully assess each post based on a set of predefined rules or criteria to ensure that it meets the desired level of quality.\n\n#AIProduct #MLEngineers #ProductTeams #AI #GenerativeAI",
+        "repaired": true
+      },
+      "refine": {
+        "status": "SUCCESS",
+        "passed": true,
+        "style_match": 0.9167,
+        "overall": 0.9368,
+        "critical_failures": [],
+        "failed_checks": [
+          "length"
+        ],
+        "issues": [
+          "length 176w outside 25-169w"
+        ],
+        "complete_ending": true,
+        "banned_phrases": [],
+        "hashtags": [
+          "#AIProduct",
+          "#MLEngineers",
+          "#ProductTeams",
+          "#AI",
+          "#GenerativeAI"
+        ],
+        "words": 176,
+        "llm_calls": 1,
+        "tokens": 823,
+        "latency_ms": 22361.0,
+        "truncated_first_draft": true,
+        "text": "Dear engineers and AI product teams, I'm excited to share my perspective on why I choose to check AI-generated LinkedIn posts with deterministic rules instead of relying on a second LLM to evaluate their accuracy. As a machine learning engineer and AI product team member, I have seen firsthand the benefits and limitations of using different methods for assessing the quality of generated content. One of the main reasons for this approach is the fact that AI models are not perfect. They are designed to generate text based on patterns and algorithms, which can sometimes result in errors or biases. When we rely solely on a second LLM to evaluate the quality of a generated post, we may miss out on the nuances and complexities of human language that AI models may not capture. On the other hand, deterministic rules provide a systematic and objective way to assess the accuracy of AI-generated content.\n\nA post that cited 0 of 18 supplied measured numbers scored 100% on the old validator.\n\n#AIProduct #MLEngineers #ProductTeams #AI #GenerativeAI",
+        "iterations": 2,
+        "accepted_steps": 1,
+        "llm_fixes_used": 0,
+        "stopped_because": "no_fixer_could_improve",
+        "initial": {
+          "status": "PARTIAL_SUCCESS",
+          "style_match": 0.9167,
+          "overall": 0.7316,
+          "issues": [
+            "supplied evidence unused: 0 of 5 measured numbers appear, cite at least 2"
+          ]
+        },
+        "score_curve": [
+          0.7316,
+          0.9368,
+          0.9368
+        ],
+        "trace": [
+          {
+            "iteration": 0,
+            "check": null,
+            "fixer": "qwen (one call)",
+            "kind": "llm",
+            "accepted": true,
+            "status": "PARTIAL_SUCCESS",
+            "overall": 0.7316,
+            "note": "first draft"
+          },
+          {
+            "iteration": 1,
+            "check": "facts_used",
+            "fixer": "quote_fact",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "SUCCESS",
+            "overall": 0.9368,
+            "note": "added a measured fact verbatim: 'A post that cited 0 of 18 supplied measured numbers scored 100% on the'"
+          },
+          {
+            "iteration": 2,
+            "check": "length",
+            "fixer": "trim_length",
+            "kind": "deterministic",
+            "accepted": false,
+            "status": "SUCCESS",
+            "overall": 0.9368,
+            "note": "trimmed trailing paragraphs to the word budget"
+          }
+        ]
+      }
+    },
+    {
+      "id": "rag_small_corpus",
+      "brief": {
+        "topic": "Semantic chunking for retrieval over a small personal writing corpus.",
+        "audience": "RAG developers and data engineers",
+        "pillar": "engineering depth",
+        "facts": "The corpus has 6143 LinkedIn export documents, of which 136 are posts and 77 are usable for style. They are split into 127 chunks with 127 MiniLM embeddings.",
+        "facts_source": "data/agent.db counts"
+      },
+      "one_shot": {
+        "status": "PARTIAL_SUCCESS",
+        "passed": false,
+        "style_match": 0.9167,
+        "overall": 0.861,
+        "critical_failures": [
+          "no_generic_phrases"
+        ],
+        "failed_checks": [
+          "no_generic_phrases"
+        ],
+        "issues": [
+          "generic phrases: delve into"
+        ],
+        "complete_ending": true,
+        "banned_phrases": [
+          "delve into"
+        ],
+        "hashtags": [
+          "#DataEngineers",
+          "#RAGDevelopers"
+        ],
+        "words": 158,
+        "llm_calls": 2,
+        "tokens": 1592,
+        "latency_ms": 40869.7,
+        "truncated_first_draft": true,
+        "text": "Semantic Chunking for Retrieval over a Small Personal Writing Corpus: A Case Study on the LinkedIn Corpus In the realm of natural language processing (NLP), semantic chunking is a powerful technique that enables efficient retrieval and analysis of text data. As a data engineer and engineer of the RAG (Reasoning About Global Events) project, I have extensively studied the effectiveness of semantic chunking for personal writing corpora, specifically focusing on the LinkedIn corpus, a valuable resource for researchers and data engineers. The LinkedIn corpus contains a substantial amount of text data, primarily in the form of posts and usable posts for style analysis. To analyze this corpus, we utilized a combination of sentiment analysis, named entity recognition, and semantic chunking techniques. To begin our investigation, let's delve into the daily and weekly timeframe for the British pound (GBPJPY). The LinkedIn corpus contains a total of 1,36 posts, with 127 chunks, each containing 127 MiniLM embeddings.\n\n#DataEngineers #RAGDevelopers",
+        "repaired": true
+      },
+      "refine": {
+        "status": "SUCCESS",
+        "passed": true,
+        "style_match": 1.0,
+        "overall": 0.9369,
+        "critical_failures": [],
+        "failed_checks": [],
+        "issues": [],
+        "complete_ending": true,
+        "banned_phrases": [],
+        "hashtags": [
+          "#DataEngineers",
+          "#RAGDevelopers"
+        ],
+        "words": 101,
+        "llm_calls": 1,
+        "tokens": 893,
+        "latency_ms": 21102.1,
+        "truncated_first_draft": true,
+        "text": "In the realm of semantic chunking for personal writing, the need for efficient and effective methods for organizing and retrieving relevant information has never been more critical for data engineers and RAG developers.\n\nThe corpus generated for this analysis contains 6143 LinkedIn export documents, representing a significant portion of the available data. Among these documents, 136 posts and 77 usable for style are extracted, split into 127 chunks with 127 MiniLM embeddings.\n\nIn the daily and weekly timeframe, we observe a significant change in character (choch) and break of structure on the GBPJPY pair, particularly in the daily timeframe.\n\n#DataEngineers #RAGDevelopers",
+        "iterations": 2,
+        "accepted_steps": 2,
+        "llm_fixes_used": 0,
+        "stopped_because": "passed",
+        "initial": {
+          "status": "PARTIAL_SUCCESS",
+          "style_match": 0.9167,
+          "overall": 0.9029,
+          "issues": [
+            "generic phrases: delve into, valuable insights"
+          ]
+        },
+        "score_curve": [
+          0.9029,
+          0.9099,
+          0.9369
+        ],
+        "trace": [
+          {
+            "iteration": 0,
+            "check": null,
+            "fixer": "qwen (one call)",
+            "kind": "llm",
+            "accepted": true,
+            "status": "PARTIAL_SUCCESS",
+            "overall": 0.9029,
+            "note": "first draft"
+          },
+          {
+            "iteration": 1,
+            "check": "no_generic_phrases",
+            "fixer": "drop_hype_sentence",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "PARTIAL_SUCCESS",
+            "overall": 0.9099,
+            "note": "dropped: 'As a renowned expert in the field, I delve into the intricacies of sem'"
+          },
+          {
+            "iteration": 2,
+            "check": "no_generic_phrases",
+            "fixer": "drop_hype_sentence",
+            "kind": "deterministic",
+            "accepted": true,
+            "status": "SUCCESS",
+            "overall": 0.9369,
+            "note": "dropped: 'This data is crucial for understanding the structure and content of pe'"
+          }
+        ]
+      }
+    }
+  ],
+  "comparison_note": "refine_draft -> refine is paired (same draft before and after refinement). one_shot -> refine is end-to-end on different samples: the seed is applied once at model load.",
+  "model_fixes_used": 0,
+  "model_fixes_budgeted": 15,
+  "reviewer_findings": [
+    "Every post passed, and several would still be rejected by a human reader. The loop optimises against the validator, so the validator's blind spots now decide quality.",
+    "Topic drift passes: harness_proof asked for a routing-harness post for hiring managers and got 'Are you a CEO dealing with manual operations...', lifted from retrieved example doc 5809. No check compares the post with the topic.",
+    "Retrieved-example content reused as fact passes: 'The AI Business Accountant, designed by our team' (business_automation_no_facts) is the author's own product from doc 5807.",
+    "Biography pulled from old posts passes: 'an AI engineer and quant developer at IIT Madras' (cpu_inference one-shot) and 'my recently completed Advanced Generative AI Master's program' (cpu_inference refine). Rule 8 says facts come only from the brief.",
+    "Generic register passes: 'In the realm of', 'has never been more critical', 'ever-evolving digital landscape'.",
+    "The loop can lower the score while clearing a defect: business_automation_no_facts went PARTIAL_SUCCESS 0.8502 -> SUCCESS 0.7642 because the drift guard ranks critical defects above score, and dropping two hype sentences also removed content.",
+    "'20x' did not hold here: the mean score stopped improving at iteration 3 of 20, and 0 of 15 budgeted model fixes were needed. Iteration ran out of defects it could see, not out of room to improve."
+  ]
+}

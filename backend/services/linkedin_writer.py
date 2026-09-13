@@ -17,6 +17,7 @@ import time
 from backend.config import SETTINGS
 from backend.harness import prompt_builder as PB
 from backend.harness.validator import STATUS_OK, validate_post
+from backend.nlp.hashtags import apply_hashtags, audience_hashtags
 from backend.llm import manager as LLM
 from backend.retrieval.index import index
 from backend.services.style_engine import (
@@ -147,9 +148,16 @@ def generate(
     )
     calls += 1
     tokens += r.total_tokens
-    text = _enforce_length(_strip_wrapper(r.text), hi)
+    # Hashtags come from the audience the user named, not from the model. Only when an
+    # audience is given, and not on revisions - every other path is left as it was.
+    tags = [] if (previous or not audience) else audience_hashtags(
+        audience, topic=topic, pillar=pillar, profile=profile,
+        cap=min(5, max(3, (constraints.get("hashtags") or [0, 5])[1])))["hashtags"]
+
+    truncated = r.stop_reason == "length"
+    text = apply_hashtags(_enforce_length(_finish(_strip_wrapper(r.text), truncated), hi), tags)
     verdict = validate_post(text, constraints, [e["text"] for e in examples],
-                            facts=facts, topic=topic)
+                            facts=facts, topic=topic, unfinished=_unfinished(text, truncated))
 
     repaired = False
     if repair and verdict["status"] != STATUS_OK and verdict["issues"]:
@@ -171,15 +179,17 @@ def generate(
                           max_tokens=int(hi * 1.6) + 40, temperature=0.4)
         calls += 1
         tokens += r2.total_tokens
-        cand = _enforce_length(_strip_wrapper(r2.text), hi)
+        cut2 = r2.stop_reason == "length"
+        cand = apply_hashtags(_enforce_length(_finish(_strip_wrapper(r2.text), cut2), hi), tags)
         v2 = validate_post(cand, constraints, [e["text"] for e in examples],
-                           facts=facts, topic=topic)
+                           facts=facts, topic=topic, unfinished=_unfinished(cand, cut2))
         if v2["style_match"] >= verdict["style_match"]:
             text, verdict, repaired = cand, v2, True
 
     return {
         "text": text,
         "validation": verdict,
+        "hashtags": tags,
         "plan": plan,
         "style_brief": brief,
         "examples": [
@@ -195,12 +205,62 @@ def generate(
             "model": r.model,
             "runtime": r.runtime,
             "repaired": repaired,
+            "truncated": truncated,
             "source_count": len(examples),
         },
     }
 
 
 _TAIL_RE = re.compile(r"^\s*(?:#\w+[\s,]*)+$")
+_SENT_END_RE = re.compile(r"[.!?…][\"'”)\]]*(?=\s|$)")
+
+
+def _finish(text: str, truncated: bool) -> str:
+    """Cut an unfinished post back to its last complete thought. Deterministic.
+
+    Only runs when there is evidence the post is unfinished - the runtime reported a
+    token-cap stop, or the body closes on a colon that introduces nothing. Otherwise
+    the text is returned untouched: 56 of the author's 77 posts end without terminal
+    punctuation (a URL, an emoji, hashtags), and those endings are their voice.
+    """
+    from backend.harness.validator import dangling_ending
+
+    t = (text or "").strip()
+    if not t or not (truncated or dangling_ending(t)):
+        return t
+    paras = [p for p in re.split(r"\n\s*\n", t) if p.strip()]
+    tail = paras[-1] if len(paras) > 1 and _TAIL_RE.match(paras[-1]) else None
+    body = "\n\n".join(paras[:-1] if tail else paras).rstrip()
+    if truncated and body.endswith("…"):
+        # LLM.generate's own trim marks a cut with "…" when nothing complete is left.
+        # On a capped reply that ellipsis is where the text was cut, not an ending.
+        body = body[:-1].rstrip()
+    ends = list(_SENT_END_RE.finditer(body))
+    if not ends:
+        return t                      # nothing complete to fall back to - leave it
+    cut = body[:ends[-1].end()].rstrip()
+    if len(cut) < len(body):
+        body = cut
+    return f"{body}\n\n{tail}" if tail else body
+
+
+def _unfinished(text: str, truncated: bool) -> bool:
+    """True when the model hit its token cap and the body still ends mid-sentence.
+
+    `_finish` cuts a capped post back to its last complete sentence; this catches the
+    one case it cannot fix - a capped post with no complete sentence to fall back to -
+    so it fails validation instead of being returned half-written.
+    """
+    if not truncated:
+        return False
+    paras = [p for p in re.split(r"\n\s*\n", (text or "").strip()) if p.strip()]
+    if len(paras) > 1 and _TAIL_RE.match(paras[-1]):
+        paras = paras[:-1]
+    body = "\n\n".join(paras).rstrip()
+    if body.endswith("…"):
+        return True                   # a capped reply ending in "…" was cut, not finished
+    ends = list(_SENT_END_RE.finditer(body))
+    return not ends or ends[-1].end() < len(body)
 
 
 def _enforce_length(text: str, hi: int, slack: float = 1.25) -> str:
