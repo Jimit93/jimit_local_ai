@@ -104,4 +104,44 @@ def _bootstrap() -> None:
     r("system_metrics", D.system_metrics, "Live CPU/RAM metrics.", "", "util")
 
 
+def _bootstrap_workspace() -> None:
+    """Coding-agent workspace tools. All sandboxed by `backend.agent.policy`."""
+    from backend.agent import code_tools as C
+
+    r = register
+    ws = "workspace:str"
+    r("file_exists", C.file_exists, "Does a path exist in the workspace.", f"{ws},path:str", "fs")
+    r("file_info", C.file_info, "Size, lines, language and hash of a file.", f"{ws},path:str", "fs")
+    r("list_directory", C.list_directory, "List one directory.", f"{ws},path:str", "fs")
+    r("read_file", C.read_file, "Read a file (line range, cached, secrets refused/redacted).",
+      f"{ws},path:str,start_line:int,end_line:int", "fs")
+    r("write_file", C.write_file, "Create or overwrite a file (checkpointed).",
+      f"{ws},path:str,content:str", "fs_write")
+    r("edit_file", C.edit_file, "Exact, unique string replacement (checkpointed).",
+      f"{ws},path:str,old:str,new:str", "fs_write")
+    r("rename_file", C.rename_file, "Rename or move a file (checkpointed).",
+      f"{ws},src:str,dst:str", "fs_write")
+    r("delete_file", C.delete_file, "Soft-delete a file to the agent trash (needs approval).",
+      f"{ws},path:str,approved:bool", "fs_write")
+    r("search_files", C.search_files, "Find files by glob or name substring.", f"{ws},pattern:str", "search")
+    r("search_code", C.search_code, "Search file contents (literal or regex).",
+      f"{ws},query:str,regex:bool,glob:str", "search")
+    r("search_symbols", C.search_symbols, "Find functions/classes by name.", f"{ws},name:str,kind:str", "search")
+    r("file_symbols", C.file_symbols, "Symbols and imports of one file.", f"{ws},path:str", "search")
+    r("syntax_check", C.syntax_check, "Parse Python/JSON/TOML files for syntax errors.", f"{ws},path:str", "verify")
+    r("run_linter", C.lint, "pyflakes over one file or the workspace.", f"{ws},path:str", "verify")
+    r("run_formatter", C.format_file, "Format with black/ruff when installed.", f"{ws},path:str", "verify")
+    r("typecheck", C.typecheck, "TypeScript tsc --noEmit.", f"{ws},project:str", "verify")
+    r("run_tests", C.run_tests, "Run the project's tests (pytest/npm), CPU-capped.",
+      f"{ws},target:str,keyword:str", "verify")
+    r("run_command", C.run_command, "Run an allowlisted command (argv, no shell).",
+      f"{ws},argv:list[str]", "exec")
+    r("git_status", C.git_status, "git status (read-only).", ws, "git")
+    r("git_diff", C.git_diff, "git diff (read-only).", f"{ws},path:str,staged:bool", "git")
+    r("git_log", C.git_log, "Recent commits (read-only).", f"{ws},n:int", "git")
+    r("process_monitor", C.process_monitor, "Top processes by CPU and RAM.", "top:int", "system")
+    r("workspace_summary", C.workspace_summary, "Languages, manifests and test runner.", ws, "fs")
+
+
 _bootstrap()
+_bootstrap_workspace()

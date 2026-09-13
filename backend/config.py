@@ -65,10 +65,51 @@ class HarnessSettings:
     style_example_max_chars: int = 700
 
 
+def _env_list(name: str, default: list[str]) -> list[str]:
+    raw = os.environ.get(name)
+    return [p for p in raw.split(";") if p.strip()] if raw else default
+
+
+@dataclass
+class AgentSettings:
+    """Coding agent: workspace scope, loop limits, resource policy, code-model tiers."""
+
+    # Directories the agent may operate in. More can be registered at runtime; every
+    # path is resolved and checked against these, so nothing outside is reachable.
+    workspace_roots: list[str] = field(
+        default_factory=lambda: _env_list("JLA_WORKSPACES", [str(ROOT)]))
+    # CPU policy (system-wide percent). <caution: normal; caution..cap: reduce;
+    # >cap: protect; >emergency: stop starting work.
+    cpu_caution_percent: float = float(os.environ.get("JLA_CPU_CAUTION", 60))
+    cpu_cap_percent: float = float(os.environ.get("JLA_CPU_CAP", 70))
+    cpu_emergency_percent: float = float(os.environ.get("JLA_CPU_EMERGENCY", 90))
+    ram_min_available_gb: float = float(os.environ.get("JLA_RAM_MIN_GB", 1.0))
+    sampler_interval_s: float = 1.0
+    # Controlled-loop limits.
+    max_iterations: int = 8
+    max_repairs: int = 2
+    step_timeout_s: float = 900.0
+    task_timeout_s: float = float(os.environ.get("JLA_AGENT_TASK_TIMEOUT", 3600))
+    command_timeout_s: float = 180.0
+    test_timeout_s: float = 600.0
+    # IO caps.
+    max_read_chars: int = 20000
+    max_edit_bytes: int = 1_000_000
+    context_max_chars: int = 7000
+    auto_resume: bool = os.environ.get("JLA_AGENT_AUTO_RESUME", "1") == "1"
+    max_auto_resumes: int = 2
+    # Code-model tiers (Ollama names). Cheapest first; the capable tier is only used
+    # when RAM allows and a cheaper attempt was insufficient.
+    code_model_small: str = os.environ.get("JLA_CODE_MODEL_SMALL", "qwen2.5-coder:0.5b")
+    code_model_capable: str = os.environ.get(
+        "JLA_CODE_MODEL_CAPABLE", "deepseek-coder:6.7b-instruct-q4_K_M")
+
+
 @dataclass
 class Settings:
     llm: LLMSettings = field(default_factory=LLMSettings)
     harness: HarnessSettings = field(default_factory=HarnessSettings)
+    agent: AgentSettings = field(default_factory=AgentSettings)
     host: str = "127.0.0.1"       # local-only bind by default
     port: int = int(os.environ.get("JLA_PORT", 8077))
 

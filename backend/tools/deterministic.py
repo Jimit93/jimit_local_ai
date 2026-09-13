@@ -53,6 +53,8 @@ _WORD_OPS = [
 _STRIP_PREFIX = re.compile(
     r"^\s*(?:what\s+is|whats|what's|calculate|compute|evaluate|how much is|solve|=)\s*", re.I
 )
+# Typographic operators people paste ("345 × 67", "10 ÷ 4", "5 − 3").
+_UNICODE_OPS = str.maketrans({"×": "*", "✕": "*", "÷": "/", "−": "-"})
 
 
 def _eval_node(node: ast.AST) -> float:
@@ -80,7 +82,7 @@ def _eval_node(node: ast.AST) -> float:
 
 def calculate(expression: str) -> dict:
     """Safe arithmetic via AST. Returns {'value': float, 'expression': normalised}."""
-    expr = _STRIP_PREFIX.sub("", str(expression)).strip().rstrip("?=.").strip()
+    expr = _STRIP_PREFIX.sub("", str(expression).translate(_UNICODE_OPS)).strip().rstrip("?=.").strip()
 
     m = _PCT_OF.search(expr)
     if m:
@@ -111,7 +113,7 @@ def calculate(expression: str) -> dict:
 
 def looks_like_math(text: str) -> bool:
     """Cheap gate so the router can try the calculator without paying for a parse."""
-    t = _STRIP_PREFIX.sub("", text.strip()).rstrip("?")
+    t = _STRIP_PREFIX.sub("", text.strip().translate(_UNICODE_OPS)).rstrip("?")
     if not re.search(r"\d", t):
         return False
     if _PCT_OF.search(t) or _PCT_INC.search(t) or _PCT_DEC.search(t):

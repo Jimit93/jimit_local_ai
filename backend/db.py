@@ -131,6 +131,111 @@ CREATE TABLE IF NOT EXISTS benchmark_runs (
     error       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_bench_run ON benchmark_runs(run_id);
+
+-- ============================================================ coding agent
+-- One row per agent task. `state_json` is the resumable record (project, topic,
+-- steps, active files, decisions, validation, next action).
+CREATE TABLE IF NOT EXISTS agent_tasks (
+    id            TEXT PRIMARY KEY,
+    session_id    TEXT,
+    workspace     TEXT NOT NULL,
+    request       TEXT NOT NULL,
+    topic         TEXT,
+    intent        TEXT,
+    status        TEXT NOT NULL,   -- queued|running|awaiting_approval|interrupted|completed|failed|blocked|cancelled
+    current_step  TEXT,
+    state_json    TEXT NOT NULL DEFAULT '{}',
+    created_at    REAL NOT NULL,
+    updated_at    REAL NOT NULL,
+    heartbeat_at  REAL,
+    resume_count  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
+
+-- Append-only timeline of what the agent did (drawn by the UI; no chain-of-thought).
+CREATE TABLE IF NOT EXISTS agent_events (
+    id           INTEGER PRIMARY KEY,
+    task_id      TEXT NOT NULL,
+    seq          INTEGER NOT NULL,
+    ts           REAL NOT NULL,
+    kind         TEXT NOT NULL,
+    step         TEXT,
+    method       TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_agent_events_task ON agent_events(task_id, seq);
+
+-- File snapshots taken before a modification; rollback restores them exactly.
+CREATE TABLE IF NOT EXISTS agent_checkpoints (
+    id          TEXT PRIMARY KEY,
+    task_id     TEXT,
+    ts          REAL NOT NULL,
+    label       TEXT NOT NULL,
+    step        TEXT,
+    workspace   TEXT NOT NULL,
+    files_json  TEXT NOT NULL DEFAULT '[]',
+    state_json  TEXT NOT NULL DEFAULT '{}',
+    restored_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_cp_task ON agent_checkpoints(task_id, ts);
+
+-- Every policy decision on a workspace action (allow, deny, approval).
+CREATE TABLE IF NOT EXISTS agent_audit (
+    id        INTEGER PRIMARY KEY,
+    ts        REAL NOT NULL,
+    task_id   TEXT,
+    action    TEXT NOT NULL,
+    target    TEXT,
+    decision  TEXT NOT NULL,
+    risk      TEXT NOT NULL,
+    detail    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_ts ON agent_audit(ts);
+
+-- Incremental code index: a file is re-parsed only when size/mtime/sha1 change.
+CREATE TABLE IF NOT EXISTS code_files (
+    workspace  TEXT NOT NULL,
+    path       TEXT NOT NULL,
+    size       INTEGER NOT NULL,
+    mtime      REAL NOT NULL,
+    sha1       TEXT NOT NULL,
+    lang       TEXT,
+    lines      INTEGER,
+    summary    TEXT,
+    indexed_at REAL NOT NULL,
+    PRIMARY KEY (workspace, path)
+);
+CREATE TABLE IF NOT EXISTS code_symbols (
+    workspace TEXT NOT NULL,
+    path      TEXT NOT NULL,
+    name      TEXT NOT NULL,
+    kind      TEXT NOT NULL,
+    line      INTEGER,
+    end_line  INTEGER,
+    parent    TEXT,
+    signature TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_code_symbols_name ON code_symbols(workspace, name);
+CREATE INDEX IF NOT EXISTS idx_code_symbols_path ON code_symbols(workspace, path);
+CREATE TABLE IF NOT EXISTS code_imports (
+    workspace TEXT NOT NULL,
+    path      TEXT NOT NULL,
+    module    TEXT NOT NULL,
+    line      INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_code_imports_path ON code_imports(workspace, path);
+
+-- Resource governor samples (trimmed to a rolling window).
+CREATE TABLE IF NOT EXISTS governor_samples (
+    ts            REAL NOT NULL,
+    sys_cpu       REAL,
+    proc_cpu      REAL,
+    ram_avail_gb  REAL,
+    state         TEXT,
+    queue         INTEGER,
+    llm_active    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_gov_ts ON governor_samples(ts);
 """
 
 

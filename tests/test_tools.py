@@ -26,6 +26,13 @@ def test_calculate(expr, expected):
     assert D.calculate(expr)["value"] == pytest.approx(expected)
 
 
+def test_calculate_accepts_typographic_operators():
+    assert D.looks_like_math("Calculate 345 × 67")
+    assert D.calculate("Calculate 345 × 67")["value"] == 23115
+    assert D.calculate("10 ÷ 4")["value"] == 2.5
+    assert D.calculate("9 − 3")["value"] == 6
+
+
 def test_calculate_rejects_code():
     with pytest.raises(Exception):
         D.calculate("__import__('os').system('dir')")
