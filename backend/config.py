@@ -35,6 +35,19 @@ LINKEDIN_SOURCES = [
 EMBED_MODEL_NAME = os.environ.get("JLA_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
 
+def _default_threads() -> int:
+    """Inference threads derived from the CPU cap, not from the core count.
+
+    Measured on this machine (reports/agent/cpu_backtest_phase2.json, Qwen1.5-1.8B):
+    16 threads -> 22.1 tok/s at 67.5% system CPU; 10 threads -> 22.5 tok/s at 58.5%;
+    8 threads -> 20.9 tok/s at 50.2%. Beyond ~60% of logical cores extra threads buy
+    no throughput and only push CPU toward the cap.
+    """
+    n = os.cpu_count() or 4
+    cap = float(os.environ.get("JLA_CPU_CAP", 70))
+    return max(1, min(n - 2, int(n * (cap - 10) / 100)))
+
+
 @dataclass
 class LLMSettings:
     """Runtime knobs for the local LLM. Memory-aware defaults."""
@@ -42,7 +55,7 @@ class LLMSettings:
     model_path: str | None = None          # explicit override
     prefer_size: str = os.environ.get("JLA_MODEL_PREFER", "auto")  # auto|small|large
     n_ctx: int = int(os.environ.get("JLA_N_CTX", 4096))
-    n_threads: int = int(os.environ.get("JLA_THREADS", 0)) or max(1, (os.cpu_count() or 4) - 2)
+    n_threads: int = int(os.environ.get("JLA_THREADS", 0)) or _default_threads()
     n_batch: int = 256
     temperature: float = 0.7
     top_p: float = 0.9

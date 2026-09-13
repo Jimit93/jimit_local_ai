@@ -57,9 +57,29 @@ def llm(force_reload: bool = False) -> LocalLLM:
         return _instance
 
 
+_busy_lock = threading.Lock()
+_busy = {"llamacpp": 0}
+_ollama_busy: dict[str, int] = {}
+
+
+def _mark(key: str, delta: int, table: dict) -> None:
+    with _busy_lock:
+        table[key] = max(0, table.get(key, 0) + delta)
+    try:
+        from backend.agent.governor import governor
+
+        governor().llm_active = any(_busy.values()) or any(_ollama_busy.values())
+    except Exception:
+        pass
+
+
 def generate(prompt: str, **kw) -> LLMResult:
     """Single funnel for every LLM call so usage is always accounted."""
-    r = llm().generate(prompt, **kw)
+    _mark("llamacpp", +1, _busy)
+    try:
+        r = llm().generate(prompt, **kw)
+    finally:
+        _mark("llamacpp", -1, _busy)
     USAGE["calls"] += 1
     USAGE["prompt_tokens"] += r.prompt_tokens
     USAGE["completion_tokens"] += r.completion_tokens
@@ -69,6 +89,27 @@ def generate(prompt: str, **kw) -> LLMResult:
 
 def is_loaded() -> bool:
     return _instance is not None and _instance.loaded
+
+
+def is_busy() -> bool:
+    return _busy["llamacpp"] > 0
+
+
+def ollama_busy(name: str) -> bool:
+    return _ollama_busy.get(name, 0) > 0
+
+
+def release() -> str | None:
+    """Unload the llama.cpp model if it is idle (RAM reclaim). It reloads lazily on next use."""
+    import gc
+
+    with _lock:
+        if _instance is None or not _instance.loaded or is_busy():
+            return None
+        name = _instance.name
+        _instance.unload()
+    gc.collect()
+    return name
 
 
 def warmup() -> dict:

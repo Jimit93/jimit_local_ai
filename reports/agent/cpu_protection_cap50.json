@@ -1,0 +1,195 @@
+{
+  "ts": 1789275348.845307,
+  "power_plugged": false,
+  "phases": {
+    "protection": {
+      "phase": "protection",
+      "governor_cap_percent": 50.0,
+      "n": 25,
+      "avg": 40.5,
+      "p50": 40.7,
+      "p95": 50.6,
+      "peak": 55.8,
+      "min": 26.9,
+      "above_cap_fraction": 0.0,
+      "ram_min_gb": 6.48,
+      "activated": true,
+      "activation_latency_s": 5.97,
+      "recovered": true,
+      "recovery_time_s": 0.0,
+      "transitions": [
+        {
+          "ts": 1789275351.9856074,
+          "from": "NORMAL",
+          "to": "CAUTION",
+          "cpu_avg": 29.4,
+          "cpu_raw": 46.5,
+          "ram_avail_gb": 6.5
+        },
+        {
+          "ts": 1789275356.7567563,
+          "from": "CAUTION",
+          "to": "HIGH_LOAD",
+          "cpu_avg": 45.6,
+          "cpu_raw": 50.1,
+          "ram_avail_gb": 6.49
+        },
+        {
+          "ts": 1789275358.3485167,
+          "from": "HIGH_LOAD",
+          "to": "NORMAL",
+          "cpu_avg": 33.9,
+          "cpu_raw": 31.8,
+          "ram_avail_gb": 6.49
+        },
+        {
+          "ts": 1789275359.4038873,
+          "from": "NORMAL",
+          "to": "CAUTION",
+          "cpu_avg": 35.0,
+          "cpu_raw": 41.0,
+          "ram_avail_gb": 6.5
+        }
+      ],
+      "protection_events": [
+        {
+          "activated_at": 1789275356.7567563,
+          "state": "HIGH_LOAD",
+          "cpu": 50.1,
+          "recovered_at": 1789275358.3485167,
+          "duration_s": 1.59
+        }
+      ],
+      "series": [
+        [
+          0.5,
+          30.0
+        ],
+        [
+          1.0,
+          55.8
+        ],
+        [
+          1.51,
+          43.0
+        ],
+        [
+          2.01,
+          32.9
+        ],
+        [
+          2.51,
+          30.9
+        ],
+        [
+          3.01,
+          40.7
+        ],
+        [
+          3.52,
+          42.3
+        ],
+        [
+          4.02,
+          50.6
+        ],
+        [
+          4.53,
+          43.3
+        ],
+        [
+          5.03,
+          41.0
+        ],
+        [
+          5.53,
+          45.1
+        ],
+        [
+          6.03,
+          45.2
+        ],
+        [
+          6.53,
+          26.9
+        ],
+        [
+          7.03,
+          34.6
+        ],
+        [
+          7.54,
+          33.3
+        ],
+        [
+          8.04,
+          38.1
+        ],
+        [
+          8.54,
+          39.6
+        ],
+        [
+          9.04,
+          39.3
+        ],
+        [
+          9.54,
+          45.3
+        ],
+        [
+          10.05,
+          44.9
+        ],
+        [
+          10.55,
+          48.8
+        ],
+        [
+          11.05,
+          44.0
+        ],
+        [
+          11.55,
+          39.9
+        ],
+        [
+          12.05,
+          40.7
+        ],
+        [
+          12.56,
+          35.6
+        ]
+      ],
+      "baseline_state": "NORMAL",
+      "admission_during_load": {
+        "admitted": true,
+        "kind": "llm",
+        "state": "NORMAL",
+        "waited_ms": 1515.5,
+        "reason": "admitted after waiting for NORMAL to clear",
+        "degrade": {
+          "context_scale": 1.0,
+          "max_tokens_scale": 1.0,
+          "llm_threads": 7
+        }
+      },
+      "child_cap_during_load": 39.2,
+      "llm_threads_during_load": 7,
+      "load_stopped_at": 1789275363.372867,
+      "admission_after_recovery": {
+        "admitted": true,
+        "kind": "llm",
+        "state": "CAUTION",
+        "waited_ms": 0.1,
+        "reason": "admitted",
+        "degrade": {
+          "context_scale": 0.75,
+          "max_tokens_scale": 0.8,
+          "llm_threads": 7
+        }
+      }
+    }
+  }
+}

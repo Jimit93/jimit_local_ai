@@ -1,0 +1,216 @@
+{
+  "ts": 1789275402.8364315,
+  "power_plugged": false,
+  "phases": {
+    "protection": {
+      "phase": "protection",
+      "governor_cap_percent": 40.0,
+      "n": 26,
+      "avg": 33.0,
+      "p50": 33.8,
+      "p95": 43.2,
+      "peak": 43.6,
+      "min": 12.1,
+      "above_cap_fraction": 0.0,
+      "ram_min_gb": 6.04,
+      "activated": true,
+      "activation_latency_s": 0.0,
+      "load_start_to_activation_s": 0.62,
+      "fraction_of_load_in_protection": 0.403,
+      "recovered": true,
+      "recovery_time_s": 0.06,
+      "transitions": [
+        {
+          "ts": 1789275405.4801764,
+          "from": "NORMAL",
+          "to": "HIGH_LOAD",
+          "cpu_avg": 24.1,
+          "cpu_raw": 41.1,
+          "ram_avail_gb": 6.13
+        },
+        {
+          "ts": 1789275407.073971,
+          "from": "HIGH_LOAD",
+          "to": "NORMAL",
+          "cpu_avg": 26.8,
+          "cpu_raw": 26.7,
+          "ram_avail_gb": 6.03
+        },
+        {
+          "ts": 1789275407.6052053,
+          "from": "NORMAL",
+          "to": "CAUTION",
+          "cpu_avg": 29.2,
+          "cpu_raw": 36.5,
+          "ram_avail_gb": 6.07
+        },
+        {
+          "ts": 1789275408.133787,
+          "from": "CAUTION",
+          "to": "HIGH_LOAD",
+          "cpu_avg": 34.8,
+          "cpu_raw": 41.3,
+          "ram_avail_gb": 6.14
+        },
+        {
+          "ts": 1789275412.9036577,
+          "from": "HIGH_LOAD",
+          "to": "CAUTION",
+          "cpu_avg": 32.9,
+          "cpu_raw": 36.8,
+          "ram_avail_gb": 6.12
+        }
+      ],
+      "protection_events": [
+        {
+          "activated_at": 1789275405.4801764,
+          "state": "HIGH_LOAD",
+          "cpu": 41.1,
+          "recovered_at": 1789275407.073971,
+          "duration_s": 1.59
+        },
+        {
+          "activated_at": 1789275408.133787,
+          "state": "HIGH_LOAD",
+          "cpu": 41.3,
+          "recovered_at": 1789275412.9036577,
+          "duration_s": 4.77
+        }
+      ],
+      "series": [
+        [
+          0.5,
+          34.4
+        ],
+        [
+          1.0,
+          40.0
+        ],
+        [
+          1.51,
+          25.9
+        ],
+        [
+          2.01,
+          27.4
+        ],
+        [
+          2.51,
+          22.6
+        ],
+        [
+          3.01,
+          32.3
+        ],
+        [
+          3.52,
+          43.2
+        ],
+        [
+          4.02,
+          42.1
+        ],
+        [
+          4.52,
+          43.6
+        ],
+        [
+          5.02,
+          38.8
+        ],
+        [
+          5.52,
+          39.5
+        ],
+        [
+          6.03,
+          28.4
+        ],
+        [
+          6.53,
+          28.1
+        ],
+        [
+          7.03,
+          30.4
+        ],
+        [
+          7.53,
+          33.8
+        ],
+        [
+          8.05,
+          38.1
+        ],
+        [
+          8.55,
+          30.7
+        ],
+        [
+          9.05,
+          28.1
+        ],
+        [
+          9.55,
+          38.1
+        ],
+        [
+          10.05,
+          33.7
+        ],
+        [
+          10.55,
+          38.0
+        ],
+        [
+          11.06,
+          37.7
+        ],
+        [
+          11.56,
+          37.0
+        ],
+        [
+          12.06,
+          29.1
+        ],
+        [
+          12.56,
+          25.3
+        ],
+        [
+          13.06,
+          12.1
+        ]
+      ],
+      "baseline_state": "NORMAL",
+      "admission_during_load": {
+        "admitted": true,
+        "kind": "llm",
+        "state": "NORMAL",
+        "waited_ms": 1495.2,
+        "reason": "admitted after waiting for NORMAL to clear",
+        "degrade": {
+          "context_scale": 1.0,
+          "max_tokens_scale": 1.0,
+          "llm_threads": 4
+        }
+      },
+      "child_cap_during_load": 23.0,
+      "llm_threads_during_load": 4,
+      "load_stopped_at": 1789275417.394754,
+      "admission_after_recovery": {
+        "admitted": true,
+        "kind": "llm",
+        "state": "CAUTION",
+        "waited_ms": 0.1,
+        "reason": "admitted",
+        "degrade": {
+          "context_scale": 0.75,
+          "max_tokens_scale": 0.8,
+          "llm_threads": 4
+        }
+      }
+    }
+  }
+}
