@@ -80,9 +80,11 @@ def keywords_simple(text: str, top: int = 8) -> list[str]:
 class BM25Index:
     """Okapi BM25 over a document list. Pure lexical, no model, no network."""
 
-    def __init__(self, docs: list[str], k1: float = 1.5, b: float = 0.75):
+    def __init__(self, docs: list[str], k1: float = 1.5, b: float = 0.75, tokenizer=None):
         self.k1, self.b = k1, b
-        self.docs_tokens = [tokenize(d) for d in docs]
+        # Prose by default; code search passes an identifier-aware tokenizer.
+        self._tok = tokenizer or tokenize
+        self.docs_tokens = [self._tok(d) for d in docs]
         self.N = len(self.docs_tokens)
         self.doc_len = [len(t) for t in self.docs_tokens]
         self.avgdl = (sum(self.doc_len) / self.N) if self.N else 0.0
@@ -95,7 +97,7 @@ class BM25Index:
         }
 
     def search(self, query: str, top_k: int = 5) -> list[tuple[int, float]]:
-        q = tokenize(query)
+        q = self._tok(query)
         if not q or not self.N:
             return []
         scores = []

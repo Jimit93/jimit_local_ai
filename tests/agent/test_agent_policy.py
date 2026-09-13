@@ -31,10 +31,13 @@ def test_unregistered_and_system_workspaces_are_refused(tmp_path):
 def test_secret_files_and_redaction():
     assert P.is_secret_file(".env") and P.is_secret_file("id_rsa") and P.is_secret_file("key.pem")
     assert not P.is_secret_file(".env.example") and not P.is_secret_file("calc.py")
-    text = 'token = "abcdefghijklmnop"\nkey=sk-proj-ABCDEFGHIJKLMNOPQRSTUVWX\nplain = 1'
+    text = ('db_password = "hunter2hunter2"\nkey=sk-proj-ABCDEFGHIJKLMNOPQRSTUVWX\n'
+            'GITHUB_AUTH_TOKEN = "a1b2c3d4e5f6g7h8i9j0"\ntokenizer = "bert-base-uncased"\nplain = 1')
     red, n = P.redact(text)
-    assert n == 2
-    assert "abcdefghijklmnop" not in red and "sk-proj-" not in red and "plain = 1" in red
+    assert n == 3
+    for leaked in ("hunter2hunter2", "sk-proj-", "a1b2c3d4e5f6g7h8i9j0"):
+        assert leaked not in red
+    assert "bert-base-uncased" in red and "plain = 1" in red
 
 
 @pytest.mark.parametrize("argv,allowed", [

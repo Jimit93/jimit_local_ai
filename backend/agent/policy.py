@@ -169,8 +169,13 @@ _SECRET_PATTERNS = [
     re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}"),
     re.compile(r"\bhf_[A-Za-z0-9]{30,}\b"),
     re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"),
-    re.compile(r"(?i)\b((?:api[_-]?key|secret|token|passw(?:or)?d|auth)[\w\-]*)\s*[:=]\s*"
+    # Names containing password/secret/credential: any quoted value of 8+ chars.
+    re.compile(r"(?i)\b([\w\-]*(?:passw(?:or)?d|secret|credential)[\w\-]*)\s*[:=]\s*"
                r"(['\"])[^'\"\s]{8,}\2"),
+    # Names containing key/token/auth: only credential-shaped values (16+ chars with
+    # letters and digits), so `tokenizer = "bert-base-uncased"` is left intact.
+    re.compile(r"(?i)\b([\w\-]*(?:api[_-]?key|access[_-]?key|token|auth)[\w\-]*)\s*[:=]\s*"
+               r"(['\"])(?=[^'\"]*\d)(?=[^'\"]*[A-Za-z])[^'\"\s]{16,}\2"),
 ]
 
 
